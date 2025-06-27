@@ -9,3 +9,10 @@ arxiv
 wikipedia
 langchain-text-splitters
 chromadb
+notebook
+jupyter
+langchain-ollama
+langchain_huggingface
+sentence-transformers
+faiss-cpu
+langchain_chroma

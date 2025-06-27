@@ -4,7 +4,7 @@ welcoming you
 check documentation for the more type of document loaders
 RAG means Retrieval Augumented Generation
 It is a important part of Gen Ai
-Gen Ai is a trending field now a days
+Gen Ai is a trend field now a days
 It is important to understand basics of Gen Ai
 Python is must to do
 All the best
