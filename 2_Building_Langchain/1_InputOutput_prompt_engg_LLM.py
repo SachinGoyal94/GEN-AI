@@ -33,4 +33,4 @@ if input_text:
     st.write(chain.invoke({"question":input_text}))
 
 #how to run
-# type in terminal   cd 2_Building_Langchain  then  streamlit run app.py
+# type in terminal   cd 2_Building_Langchain  then  streamlit run 1_InputOutput_prompt_engg_LLM.py
