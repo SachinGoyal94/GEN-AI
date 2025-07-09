@@ -2,8 +2,15 @@ import os
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-
+from langchain_groq import ChatGroq
+from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 load_dotenv()
+
+groq_key=os.getenv("GROQ_KEY")
+os.environ["GROQ_API_KEY"] = groq_key
+gemini_key=os.getenv("GEMINI_KEY")
+os.environ["GEMINI_API_KEY"] = gemini_key
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant. Please respond carefully."),
@@ -13,36 +20,17 @@ prompt = ChatPromptTemplate.from_messages([
 
 def get_chain(engine):
     try:
-        # Groq models
-        if "groq" in engine.lower() or engine.lower() == "llama3-8b-8192":
-            from langchain_groq import ChatGroq
-            print(f"✅ Using ChatGroq for {engine}")
-            # Get API key from environment variables
-            groq_api_key = os.getenv("GROQ_KEY")
-            if not groq_api_key:
-                raise ValueError("GROQ_API_KEY environment variable not set")
-            llm = ChatGroq(
-                model=engine,
-                groq_api_key=groq_api_key  # Explicitly pass the API key
-            )
-
+        if engine in ["gemma2-9b-it","llama-3.1-8b-instant","llama3-8b-8192"]:
+            llm = ChatGroq(model=engine,streaming=True)
         # Gemini models
-        elif "gemini" in engine.lower():
-            from langchain_google_genai import ChatGoogleGenerativeAI
-            print(f"✅ Using ChatGoogleGenerativeAI for {engine}")
+        elif engine in ["gemini-1.5-flash","gemini-2.0-pro","gemini-2.5-pro"]:
             llm = ChatGoogleGenerativeAI(model=engine)
-
         # Ollama models (local)
-        elif engine.lower() == "llama3.2" or "ollama" in engine.lower():
-            from langchain_ollama import ChatOllama
-            print(f"✅ Using ChatOllama for {engine}")
+        elif engine in ["llama3.2:latest","gemma3:1b"]:
             llm = ChatOllama(model=engine)
-
         else:
-            available_engines = ["gemini-1.5-flash", "gemini-2.0-pro", "gemini-2.5-pro", "llama3.2",
-                                 "llama3-8b-8192"]
             print(f"❌ No match found for engine: '{engine}'")
-            raise ValueError(f"Unknown engine: '{engine}'. Available engines: {available_engines}")
+            raise ValueError(f"Unknown engine: '{engine}'.")
 
         output_parser = StrOutputParser()
         chain = prompt | llm | output_parser
