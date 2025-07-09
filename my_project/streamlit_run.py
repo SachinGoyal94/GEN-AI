@@ -5,9 +5,15 @@ API_URL = "http://localhost:8000"
 
 st.title("🔐 Secure Q&A Chatbot with JWT")
 
+# ✅ Initialize session state keys
 if "access_token" not in st.session_state:
     st.session_state.access_token = None
+if "username" not in st.session_state:
+    st.session_state.username = None
+if "show_history" not in st.session_state:
+    st.session_state.show_history = False
 
+# ✅ If not logged in: show Register/Login
 if st.session_state.access_token is None:
     st.subheader("Register or Login")
     username = st.text_input("Username")
@@ -28,6 +34,7 @@ if st.session_state.access_token is None:
         )
         if res.status_code == 200:
             st.session_state.access_token = res.json()["access_token"]
+            st.session_state.username = username  # ✅ Save username
             st.success("✅ Login successful!")
             st.rerun()
         else:
@@ -35,10 +42,39 @@ if st.session_state.access_token is None:
 
     st.stop()
 
-st.success("✅ You are logged in!")
+# ✅ If logged in
+st.sidebar.write(f"👤 Logged in as: `{st.session_state.username}`")
 
+if st.sidebar.button("🚪 Logout"):
+    st.session_state.access_token = None
+    st.session_state.username = None
+    st.rerun()
 
-engine = st.sidebar.selectbox("Select Gemini model", ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"])
+# ✅ Toggle chat history
+if st.sidebar.button("🗂️ Toggle Chat History"):
+    st.session_state.show_history = not st.session_state.show_history
+
+# ✅ Delete chat history
+if st.sidebar.button("🗑️ Delete Chat History"):
+    headers = {"Authorization": f"Bearer {st.session_state.access_token}"}
+    res = requests.delete(f"{API_URL}/history", headers=headers)
+    if res.status_code == 200:
+        st.success("✅ Chat history cleared!")
+    else:
+        st.error("❌ Failed to clear chat history.")
+
+# ✅ Ask a question
+engine = st.sidebar.selectbox(
+    "Select LLM model",
+    [
+        "gemini-1.5-flash",
+        "gemini-2.0-pro",
+        "gemini-2.5-pro",
+        "llama3.2",
+        "llama3-8b-8192"
+    ]
+)
+
 st.write("Ask your question below:")
 user_input = st.text_input("You:")
 
@@ -51,7 +87,8 @@ if user_input:
     else:
         st.error("❌ Failed to get answer.")
 
-if st.sidebar.button("Show Chat History"):
+# ✅ Show chat history if toggled
+if st.session_state.show_history:
     headers = {"Authorization": f"Bearer {st.session_state.access_token}"}
     res = requests.get(f"{API_URL}/history", headers=headers)
     if res.status_code == 200:

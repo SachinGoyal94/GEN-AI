@@ -8,5 +8,12 @@
       <jdbc-url>jdbc:sqlite:D:\GEN-AI\1 RAG\chroma_langchain_db\chroma.sqlite3</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
+    <data-source source="LOCAL" name="new" uuid="4bb4bfbd-cb50-4b58-b1f8-dacf3f4d6e6d">
+      <driver-ref>sqlite.xerial</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
+      <jdbc-url>jdbc:sqlite:D:\GEN-AI\3_Tools_and_Agents\new.db</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
   </component>
 </project>

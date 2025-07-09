@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from database import Base
 from datetime import datetime
 
@@ -12,7 +12,7 @@ class User(Base):
 class ChatHistory(Base):
     __tablename__ = "chat_history"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String(100))
+    user_id = Column(Integer, ForeignKey("users.id"))  # Fixed: should be Integer, not String
     question = Column(Text)
     answer = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)

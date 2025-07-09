@@ -34,6 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 def get_db():
     db = SessionLocal()
     try:
@@ -41,17 +42,21 @@ def get_db():
     finally:
         db.close()
 
+
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def get_password_hash(password):
     return pwd_context.hash(password)
+
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -71,9 +76,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
+
 class RegisterUser(BaseModel):
     username: str
     password: str
+
 
 @app.post("/register")
 def register(user: RegisterUser, db: Session = Depends(get_db)):
@@ -86,6 +93,7 @@ def register(user: RegisterUser, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Registered successfully"}
 
+
 @app.post("/token")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form_data.username).first()
@@ -97,25 +105,67 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+
 class AskPrompt(BaseModel):
     question: str
     engine: str
 
+
 @app.post("/ask")
 def ask(req: AskPrompt, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_KEY")
-    chain = get_chain(req.engine)
-    answer = chain.invoke({"question": req.question})
-    chat = ChatHistory(user_id=user.id, question=req.question, answer=answer)
-    db.add(chat)
-    db.commit()
-    return {"answer": answer}
+    try:
+        engine_lower = req.engine.lower()
+        print(f"🚩 Received engine: '{req.engine}'")
+
+        if "gemini" in engine_lower:
+            api_key = os.getenv("GEMINI_KEY")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="GEMINI_KEY not set")
+            os.environ["GOOGLE_API_KEY"] = api_key
+        elif "groq" in engine_lower or engine_lower == "llama3-8b-8192":
+            api_key = os.getenv("GROQ_KEY")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="GROQ_API_KEY not set")
+            os.environ["GROQ_API_KEY"] = api_key
+        elif engine_lower in ["llama3", "llama3.2", "mistral"] or "ollama" in engine_lower:
+            pass
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown engine: '{req.engine}'")
+
+        chain = get_chain(req.engine)
+        answer = chain.invoke({"question": req.question})
+
+        chat = ChatHistory(user_id=user.id, question=req.question, answer=answer)
+        db.add(chat)
+        db.commit()
+
+        return {"answer": answer}
+
+    except HTTPException:
+        raise  # Keep raising any HTTP errors
+    except Exception as e:
+        print(f"❌ LLM error: {e}")
+        print(f"Engine: {req.engine}")
+        print(f"Question: {req.question}")
+        raise HTTPException(status_code=500, detail=f"LLM request failed: {str(e)}")
+
+
 
 @app.get("/history")
 def history(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     chats = db.query(ChatHistory).filter(ChatHistory.user_id == user.id).order_by(ChatHistory.created_at.desc()).all()
     return [{"question": c.question, "answer": c.answer, "created_at": c.created_at.isoformat()} for c in chats]
 
+
+@app.delete("/history")
+def delete_history(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.query(ChatHistory).filter(ChatHistory.user_id == user.id).delete()
+    db.commit()
+    return {"message": "Chat history cleared"}
+
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

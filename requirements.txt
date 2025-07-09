@@ -35,3 +35,11 @@ langserve
 sse_starlette
 pydantic
 uvicorn
+duckduckgo-search
+tenacity
+gradio
+pymongo
+sqlalchemy
+pymysql
+passlib[bcrypt]
+python-jose

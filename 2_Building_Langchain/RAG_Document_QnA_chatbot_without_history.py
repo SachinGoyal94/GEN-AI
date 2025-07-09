@@ -72,9 +72,3 @@ if user_prompt:
         for i,doc in enumerate(response['context']):
             st.write(doc.page_content)
             st.write('------------------------')
-
-
-
-
-
-

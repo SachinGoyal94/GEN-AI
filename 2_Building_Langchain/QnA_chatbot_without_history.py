@@ -60,5 +60,3 @@ elif user_input:
     st.warning("Please enter the Gemini API Key in the sider bar")
 else:
     st.write("Please provide the user input")
-
-
