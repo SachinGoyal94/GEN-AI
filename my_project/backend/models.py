@@ -16,3 +16,4 @@ class ChatHistory(Base):
     question = Column(Text)
     answer = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+    

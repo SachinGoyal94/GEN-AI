@@ -124,13 +124,6 @@ def ask(req: AskPrompt, db: Session = Depends(get_db), user: User = Depends(get_
 
         return {"answer": answer}
 
-#    except HTTPException:
- #       raise  # Keep raising any HTTP errors
-  #  except Exception as e:
-   #     print(f"❌ LLM error: {e}")
-    #    print(f"Engine: {req.engine}")
-     #   print(f"Question: {req.question}")
-      #  raise HTTPException(status_code=500, detail=f"LLM request failed: {str(e)}")
 
 
 
