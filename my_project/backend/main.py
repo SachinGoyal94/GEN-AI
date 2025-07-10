@@ -113,26 +113,8 @@ class AskPrompt(BaseModel):
 
 @app.post("/ask")
 def ask(req: AskPrompt, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    try:
-        engine_lower = req.engine.lower()
+
         print(f"🚩 Received engine: '{req.engine}'")
-
-        if "gemini" in engine_lower:
-            api_key = os.getenv("GEMINI_KEY")
-            if not api_key:
-                raise HTTPException(status_code=500, detail="GEMINI_KEY not set")
-            os.environ["GOOGLE_API_KEY"] = api_key
-        elif "groq" in engine_lower or engine_lower == "llama3-8b-8192":
-            api_key = os.getenv("GROQ_KEY")
-            if not api_key:
-                raise HTTPException(status_code=500, detail="GROQ_API_KEY not set")
-            os.environ["GROQ_API_KEY"] = api_key
-        elif engine_lower in ["llama3", "llama3.2", "mistral"] or "ollama" in engine_lower:
-            pass
-
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown engine: '{req.engine}'")
-
         chain = get_chain(req.engine)
         answer = chain.invoke({"question": req.question})
 
@@ -142,13 +124,13 @@ def ask(req: AskPrompt, db: Session = Depends(get_db), user: User = Depends(get_
 
         return {"answer": answer}
 
-    except HTTPException:
-        raise  # Keep raising any HTTP errors
-    except Exception as e:
-        print(f"❌ LLM error: {e}")
-        print(f"Engine: {req.engine}")
-        print(f"Question: {req.question}")
-        raise HTTPException(status_code=500, detail=f"LLM request failed: {str(e)}")
+#    except HTTPException:
+ #       raise  # Keep raising any HTTP errors
+  #  except Exception as e:
+   #     print(f"❌ LLM error: {e}")
+    #    print(f"Engine: {req.engine}")
+     #   print(f"Question: {req.question}")
+      #  raise HTTPException(status_code=500, detail=f"LLM request failed: {str(e)}")
 
 
 

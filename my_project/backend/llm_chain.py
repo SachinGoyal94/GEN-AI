@@ -9,8 +9,8 @@ load_dotenv()
 
 groq_key=os.getenv("GROQ_KEY")
 os.environ["GROQ_API_KEY"] = groq_key
-gemini_key=os.getenv("GEMINI_KEY")
-os.environ["GEMINI_API_KEY"] = gemini_key
+gemini_api_key = os.getenv("GEMINI_KEY")
+os.environ["GEMINI_API_KEY"] = gemini_api_key
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant. Please respond carefully."),

@@ -70,8 +70,11 @@ engine = st.sidebar.selectbox(
         "gemini-1.5-flash",
         "gemini-2.0-pro",
         "gemini-2.5-pro",
-        "llama3.2",
-        "llama3-8b-8192"
+        "llama3-8b-8192",
+        "gemma2-9b-it",
+        "llama-3.1-8b-instant",
+        "llama3.2:latest",
+        "gemma3:1b"
     ]
 )
 
