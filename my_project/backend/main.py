@@ -25,6 +25,15 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
+@app.get("/api/{path:path}")
+def catch_all(path: str):
+    return {"path": path}
+
 # ✅ CORS for Streamlit
 app.add_middleware(
     CORSMiddleware,
@@ -140,7 +149,3 @@ def delete_history(db: Session = Depends(get_db), user: User = Depends(get_curre
     return {"message": "Chat history cleared"}
 
 
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
