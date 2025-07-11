@@ -1,7 +1,13 @@
+python-dotenv
+streamlit
+langchain_groq
+langchain_huggingface
+mysql-connector-python
+SQLAlchemy
 fastapi
+pydantic
 uvicorn
 sqlalchemy
-pydantic
-python-jose[cryptography]
+pymysql
 passlib[bcrypt]
-python-dotenv
+python-jose
