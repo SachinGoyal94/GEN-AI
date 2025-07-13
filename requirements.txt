@@ -24,7 +24,7 @@ pandas
 duckduckgo_search==5.3.1b1
 mysql-connector-python
 SQLAlchemy
-validators==0.28.1
+validators
 youtube_transcript_api
 unstructured
 pytube
@@ -43,3 +43,4 @@ sqlalchemy
 pymysql
 passlib[bcrypt]
 python-jose
+transformers
