@@ -21,5 +21,5 @@ description=(
     tools=[yt_tool],
     agent=blog_writer,
     async_execution=False,
-    output_file='new-blog-post.md'  # Example of output customization
+    output_file='{topic}-blog-post.md'  # Example of output customization
 )
