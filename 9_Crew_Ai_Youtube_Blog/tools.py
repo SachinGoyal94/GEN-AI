@@ -17,11 +17,6 @@ class YoutubeChannelSearchTool(BaseTool):
         print(f"--- Searching YouTube for channel: {youtube_channel_handle} ---")
         return (
             f"Sample data for channel {youtube_channel_handle}:\n"
-            "- 'AI vs ML vs DL Explained' — 250K views, uploaded 3 days ago\n"
-            "- 'LangChain Tutorial for Beginners' — 180K views, uploaded 1 week ago\n"
-            "- 'Prompt Engineering Tips' — 150K views, uploaded 2 weeks ago\n"
-            "- Consistent posting on AI/ML/GenAI topics, mostly 10–15 min videos.\n"
-            "- Engagement is high, with frequent Q&A in comments."
         )
 
 yt_tool = YoutubeChannelSearchTool()
