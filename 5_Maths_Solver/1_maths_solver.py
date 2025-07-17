@@ -99,7 +99,7 @@ if st.button("find my answer"):
                 response = result["output"]
             else:
                 response = result
-                
+
             st.session_state.messages.append({"role":"assistant","content":response})
             st.write("Response:")
             st.success(response)
