@@ -11,11 +11,6 @@ from models import User, ChatHistory
 from llm_chain import get_chain
 import os
 from dotenv import load_dotenv
-import logging # Import logging module
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -26,17 +21,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# --- IMPORTANT DATABASE INITIALIZATION ---
-# This block attempts to create tables on startup.
-# In production, it's highly recommended to use a dedicated migration tool like Alembic.
-# For now, we add a try-except block to provide clearer error messages if the DB connection fails.
-try:
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables checked/created successfully.")
-except Exception as e:
-    logger.error(f"❌ ERROR: Could not connect to database or create tables: {e}")
-    # Re-raise the exception to prevent the app from starting with a broken DB connection
-    raise
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -140,6 +125,8 @@ def ask(req: AskPrompt, db: Session = Depends(get_db), user: User = Depends(get_
         return {"answer": answer}
 
 
+
+
 @app.get("/history")
 def history(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     chats = db.query(ChatHistory).filter(ChatHistory.user_id == user.id).order_by(ChatHistory.created_at.desc()).all()
@@ -157,3 +144,5 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+    
