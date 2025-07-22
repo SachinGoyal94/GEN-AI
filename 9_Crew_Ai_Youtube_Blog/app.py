@@ -1,12 +1,9 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
-import re # Import regex for filename sanitization if needed
-
-# Ensure dotenv is loaded for local development
+import re 
 load_dotenv()
 
-# --- Custom Tool Definition (from tools.py) ---
 from crewai.tools import BaseTool
 
 class YoutubeChannelSearchTool(BaseTool):
@@ -38,17 +35,14 @@ class YoutubeChannelSearchTool(BaseTool):
 
 yt_tool = YoutubeChannelSearchTool()
 
-# --- LLM Definition (from llm.py) ---
 from crewai import LLM
 
-# Get Gemini API Key from Streamlit secrets or environment variables
 gemini_key = os.getenv("GEMINI_KEY") or st.secrets.get("GEMINI_KEY")
 
 if not gemini_key:
     st.error("GEMINI_KEY not found. Please set it in your environment variables or Streamlit secrets.")
     st.stop()
 
-# Initialize the LLM
 try:
     gemini_llm = LLM(
         model='gemini/gemini-2.5-pro', # Or 'gemini-1.5-flash' for faster responses
@@ -59,7 +53,6 @@ except Exception as e:
     st.stop()
 
 
-# --- Agents Definition (from agents.py) ---
 from crewai import Agent
 
 blog_researcher = Agent(
@@ -88,7 +81,6 @@ blog_writer = Agent(
     llm=gemini_llm
 )
 
-# --- Tasks Definition (from tasks.py) ---
 from crewai import Task
 
 research_task = Task(
@@ -108,14 +100,11 @@ write_task = Task(
         "The blog post should be well-structured, engaging, and easy to understand for a general audience."
     ),
     expected_output='A well-structured and engaging blog post about {topic} based on the YouTube video content.',
-    tools=[yt_tool], # The writer agent might also use the tool to re-verify or get more context if needed
+    tools=[yt_tool],
     agent=blog_writer,
     async_execution=False,
-    # Removed output_file parameter to prevent invalid filename issues.
-    # The result will now be returned as a string by crew.kickoff()
 )
 
-# --- Streamlit App Layout ---
 st.set_page_config(page_title="YouTube Blog Post Creator", layout="centered")
 
 st.title("✍️ YouTube Blog Post Creator")
@@ -145,7 +134,6 @@ if st.button("Generate Blog Post"):
         st.subheader("Generating Blog Post...")
         with st.spinner("Crew is working hard to research and write your blog post..."):
             try:
-                # Initialize the Crew
                 from crewai import Crew, Process
                 crew = Crew(
                     agents=[blog_researcher, blog_writer],
@@ -154,15 +142,12 @@ if st.button("Generate Blog Post"):
                     verbose=True,
                 )
 
-                # Kickoff the crew with dynamic inputs
                 result = crew.kickoff(inputs={'topic': blog_topic, 'youtube_channel_handle': youtube_channel_handle})
 
                 st.success("Blog post generated successfully!")
                 st.subheader("Generated Blog Post:")
                 st.markdown(result)
 
-                # Optional: Provide a download button for the generated content
-                # Sanitize the topic for a valid filename if you want to offer download
                 safe_filename = re.sub(r'[\\/:*?"<>|]', '', blog_topic) # Remove invalid characters
                 st.download_button(
                     label="Download Blog Post as Markdown",
@@ -174,14 +159,3 @@ if st.button("Generate Blog Post"):
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")
-                st.markdown(
-                    """
-                    **Troubleshooting Tips:**
-                    * Ensure your `GEMINI_KEY` is correctly set in your environment variables or Streamlit secrets.
-                    * The custom `YoutubeChannelSearchTool` is currently a placeholder. For real functionality,
-                        it needs to be integrated with the YouTube Data API.
-                    * Check the console for more detailed error messages.
-                    """
-                )
-
-
