@@ -4,18 +4,16 @@ from crew import build_character_crew
 from character_info import get_character_summary
 from llm import groq_llm
 
-# Page configuration
+
 st.set_page_config(
     page_title="Character Chat 💬",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
-# Title and description
 st.title("🧙‍♂️ Character Chat from Any Book or Movie")
 st.markdown("Upload a PDF of a book or script and chat with any character from it!")
 
-# Initialize session state
 if "character_summary" not in st.session_state:
     st.session_state.character_summary = ""
 if "character_name" not in st.session_state:
@@ -25,7 +23,6 @@ if "pdf_processed" not in st.session_state:
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Sidebar for character setup
 with st.sidebar:
     st.header("📚 Character Setup")
 
@@ -36,14 +33,12 @@ with st.sidebar:
         help="Enter the name of the character you want to chat with"
     )
 
-    # File upload
     uploaded_file = st.file_uploader(
         "Upload Character Document (PDF)",
         type=['pdf'],
         help="Upload a PDF containing information about the character"
     )
 
-    # Process button
     if st.button("🔄 Process Character", type="primary"):
         if not uploaded_file or not character_name:
             st.error("Please provide both a character name and upload a PDF file.")
@@ -58,25 +53,21 @@ with st.sidebar:
                     with open(file_path, "wb") as f:
                         f.write(uploaded_file.read())
 
-                    # Generate character summary
                     summary = get_character_summary(character_name, file_path)
 
-                    # Store in session state
                     st.session_state.character_summary = summary
                     st.session_state.character_name = character_name
                     st.session_state.pdf_processed = True
-                    st.session_state.chat_history = []  # Clear previous chat history
+                    st.session_state.chat_history = []  # Clearing the previous chat history
 
                     st.success(f"✅ {character_name} is ready to chat!")
 
                 except Exception as e:
                     st.error(f"Error processing character: {str(e)}")
 
-    # Show character status
     if st.session_state.pdf_processed:
         st.success(f"✅ {st.session_state.character_name} is loaded")
 
-        # Show character summary (expandable)
         with st.expander("📄 Character Summary"):
             st.text_area(
                 "Character Information",
@@ -85,7 +76,6 @@ with st.sidebar:
                 disabled=True
             )
 
-    # Clear button
     if st.button("🗑️ Clear Character"):
         st.session_state.character_summary = ""
         st.session_state.character_name = ""
@@ -127,7 +117,6 @@ else:
     if submit_button and user_input.strip():
         with st.spinner(f"💭 {st.session_state.character_name} is thinking..."):
             try:
-                # Build crew and get response
                 crew = build_character_crew(
                     st.session_state.character_name,
                     st.session_state.character_summary,
@@ -135,26 +124,21 @@ else:
                     groq_llm
                 )
 
-                # Execute the crew
                 result = crew.kickoff()
 
-                # Extract the response
                 if hasattr(result, 'raw'):
                     character_response = result.raw
                 else:
                     character_response = str(result)
 
-                # Add to chat history
                 st.session_state.chat_history.append((user_input, character_response))
 
-                # Rerun to update the display
                 st.rerun()
 
             except Exception as e:
                 st.error(f"Error getting response: {str(e)}")
                 st.error("Please check your API key and try again.")
 
-    # Handle clear chat
     if clear_chat:
         st.session_state.chat_history = []
         st.rerun()
