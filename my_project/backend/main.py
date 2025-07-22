@@ -140,7 +140,4 @@ def delete_history(db: Session = Depends(get_db), user: User = Depends(get_curre
     return {"message": "Chat history cleared"}
 
 
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+handler=app
