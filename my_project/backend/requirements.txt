@@ -2,11 +2,6 @@ python-dotenv
 langchain_google_genai
 langchain_community
 ipykernel
-bs4
-arxivloader
-pymupdf
-arxiv
-wikipedia
 langchain-text-splitters
 chromadb
 notebook
@@ -20,7 +15,6 @@ streamlit
 langchain_groq
 langchain_huggingface
 duckdb
-pandas
 duckduckgo_search==5.3.1b1
 mysql-connector-python
 SQLAlchemy
@@ -37,12 +31,9 @@ pydantic
 uvicorn
 duckduckgo-search
 tenacity
-gradio
 pymongo
 sqlalchemy
 pymysql
 passlib[bcrypt]
 python-jose
 transformers
-pypdf2
-deta
