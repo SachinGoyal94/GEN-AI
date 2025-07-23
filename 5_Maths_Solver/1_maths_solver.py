@@ -7,13 +7,12 @@ from langchain.agents.agent_types import AgentType
 from langchain.agents import Tool,initialize_agent
 from langchain.callbacks import StreamlitCallbackHandler
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
 st.set_page_config(page_title="Text to Maths Solver",page_icon="🧮")
 st.title("Text to Maths Problem Solver Using Google Gemma 2")
-groq_api_key=st.sidebar.text_input(label="Enter Groq API Key",type="password")
-
-if not groq_api_key:
-    st.info("Please enter Groq API Key")
-    st.stop()
+groq_api_key=os.getenv("GROQ_KEY") or st.secrets.get("GROQ_KEY")
 
 llm=ChatGroq(model="Gemma2-9b-It",api_key=groq_api_key)
 
