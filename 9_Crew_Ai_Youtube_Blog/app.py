@@ -59,7 +59,7 @@ blog_researcher = Agent(
     role="Blog Researcher from youtube videos",
     goal="get the relevant video transcription for the topic {topic} from the provided Youtube Channel",
     verbose=True,
-    memory=False,
+    memory=True,
     backstory="AI Data Science and Gen AI Expert in understanding Youtube videos",
     tools=[yt_tool],
     allow_delegation=True,
@@ -70,7 +70,7 @@ blog_writer = Agent(
     role="Blog writer",
     goal="Narrate compelling tech stories from yt video {topic} from Youtube",
     verbose=True,
-    memory=False,
+    memory=True,
     backstory=(
             "With a flair for simplifying complex topics, you craft "
             "engaging narratives that captivate and educate, bringing new "
