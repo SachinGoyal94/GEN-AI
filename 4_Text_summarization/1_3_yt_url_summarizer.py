@@ -5,20 +5,22 @@ from langchain.chains.summarize import load_summarize_chain
 from langchain_community.document_loaders import UnstructuredURLLoader
 from youtube_transcript_api import YouTubeTranscriptApi
 from langchain.schema import Document
+
 ## streamlit APP
 st.set_page_config(page_title="LangChain: Summarize Text From YT or Website", page_icon="🦜")
 st.title("🦜 LangChain: Summarize Text From YT or Website")
 st.subheader('Summarize URL')
 
-with st.sidebar:
-    gemini_api_key=st.text_input("Enter Gemini Api key",value="",type="password")
+import os
+from dotenv import load_dotenv
+load_dotenv()
+gemini_api_key=os.getenv('GEMINI_KEY') or st.secrets['gemini_key']
 
 generic_url=st.text_input("URL",label_visibility="collapsed")
 llm=ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite-preview-06-17",api_key=gemini_api_key)
+
 prompt_template="""
 Provide the summary for the given content in 300 words
-Remember if the content is in english then provide in english else 
-provide the summary in english as well as in the other language but keep at most 2 languages   
 Content:{text}
 """
 prompt=PromptTemplate(input_variables=["text"],template=prompt_template)
@@ -40,25 +42,14 @@ if "youtube.com" in generic_url and validators.url(generic_url):
     try:
         video_id=generic_url.split("=")[1]
 
-        ## getting all the transcritps in various languages
-        available = YouTubeTranscriptApi.list_transcripts(video_id)
-        lang_options=[]
-        for transcript in available:
-            lang_name=transcript.language           #Hindi
-            lang_code=transcript.language_code       #hi for hindi
 
-            option=lang_name +"("+lang_code+")"     #example "Hindi (hi)"
-            lang_options.append(option)
+        ## getting all the transcritps in various languages
+        ytt_api=YouTubeTranscriptApi()
+        available_transcripts = ytt_api.list(video_id)
+        lang_options=[t.language_code for t in available_transcripts]
 
         #let user pick the language
         selected_lang=st.selectbox("Select Language",options=lang_options)
-
-        #now after they pick getting the lang code
-        if selected_lang:
-            parts=selected_lang.split("(")
-            last_part=parts[-1]             #"hi)"
-            selected_lang_code=last_part.strip(")")
-
 
     except Exception as e:
         raise e
@@ -78,11 +69,12 @@ if st.button("Summarize the content from Yt or website"):
                         st.warning("Please select a language for the transcript first.")
                         st.stop()
 
-                    transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=[selected_lang_code])
+                    ytt_api = YouTubeTranscriptApi()
+                    transcript_data = ytt_api.fetch(video_id, languages=[selected_lang])
 
                     transcript_text = ""
-                    for entry in transcript_data:
-                        transcript_text += " " + entry["text"]
+                    for snippet in transcript_data:
+                        transcript_text +=" "+ snippet.text
 
                     docs = [Document(page_content=transcript_text)]
                 else:
