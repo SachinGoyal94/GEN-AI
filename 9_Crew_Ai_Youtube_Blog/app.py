@@ -21,16 +21,6 @@ class YoutubeChannelSearchTool(BaseTool):
         # In a real app, this would involve API calls to get video data.
         return (
             f"Simulated data for channel '{youtube_channel_handle}':\n"
-            f"Video 1: 'Understanding AI vs ML vs DL' - This video provides a foundational "
-            f"understanding of Artificial Intelligence, Machine Learning, and Deep Learning, "
-            f"highlighting their differences and interconnections. It covers basic definitions, "
-            f"historical context, and practical applications of each field.\n\n"
-            f"Video 2: 'Latest Trends in Generative AI' - Discusses recent advancements and "
-            f"future prospects in generative AI, including large language models and image generation. "
-            f"It delves into the ethical considerations and potential societal impacts.\n\n"
-            f"Video 3: 'Practical Machine Learning with Python' - A tutorial-style video "
-            f"demonstrating how to implement various machine learning algorithms using Python "
-            f"libraries like scikit-learn and TensorFlow. It includes a hands-on example."
         )
 
 yt_tool = YoutubeChannelSearchTool()
