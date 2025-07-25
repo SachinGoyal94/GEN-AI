@@ -37,7 +37,7 @@ if not gemini_key:
 
 # Initialize LLM
 gemini_llm = LLM(
-    model='gemini/gemini-2.5-pro',
+    model='gemini-2.5-flash-lite-preview-06-17',
     api_key=gemini_key
 )
 
