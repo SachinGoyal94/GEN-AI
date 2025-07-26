@@ -594,9 +594,11 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Base(), title="Character Chat ðŸ’
 
 # Launch the app
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))  # Render uses 10000 by default
     app.launch(
-        server_name="localhost",
-#        server_port=7860,
+        server_name="0.0.0.0",   # Required for public access
+        server_port=port,        # Port expected by Render
         share=False,
-        debug=True
+        debug=True,
+        inbrowser=False          # Not needed on server
     )
