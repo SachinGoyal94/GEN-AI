@@ -83,7 +83,7 @@ Some projects are deployed on platforms like **Render**, **Hugging Face Spaces**
 
 ## 🧭 Roadmap
 
-- [ ] Build modular GenAI apps with LangChain & CrewAI  
+- [x] Build modular GenAI apps with LangChain & CrewAI  
 - [ ] Add support for RAG-based applications  
 - [ ] Implement agent memory & persona-driven dialogues  
 - [ ] Add full frontend-backend deployment templates  
