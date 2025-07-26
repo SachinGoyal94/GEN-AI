@@ -1,8 +1,7 @@
 python-dotenv
-
 langchain_community
 ipykernel
-
+sentence_transformers
 langchain-text-splitters
 langchain_huggingface
 langchain_groq
