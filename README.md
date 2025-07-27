@@ -78,6 +78,7 @@ Some projects are deployed on platforms like **Render**, **Hugging Face Spaces**
 - 🔗 [YouTube Blog Creator (Render)](https://yt-blog-creator.onrender.com/)  
 - 🔗 [Maths Solver (Streamlit)](https://my-maths-solver.streamlit.app/)  
 - 🔗 [YouTube & Website Content Summarizer (Streamlit)](https://intelli-summarizer.streamlit.app/)
+- 🔗 [Database Ai Assistant (Streamlit)](https://database-speaks.streamlit.app/)
 
 ---
 
