@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
 import streamlit as st
 from langchain.agents import create_sql_agent
 from pathlib import Path
@@ -34,7 +37,7 @@ else:
 
 #now user has selected which db they want to chat with
 
-api_key=st.sidebar.text_input("Enter you Groq Key",type="password")
+api_key=os.getenv("GROQ_KEY") or st.secrets["GROQ_KEY"]
 
 st.sidebar.info(
             """"💡 **Advice:** If you choose MySQL, make sure any special character in password is replaced by
@@ -49,8 +52,6 @@ st.sidebar.info(
 
 if not db_uri:
     st.info("Pls enter DB info and uri")
-if not api_key:
-    st.info("Pls enter you Groq Key")
 
 llm=ChatGroq(groq_api_key=api_key,model="gemma2-9b-it",streaming=True)
 
@@ -84,7 +85,7 @@ if "messages" not in st.session_state or st.sidebar.button("clear message histor
 user_query=st.chat_input(placeholder="Ask anything from the database")
 
 if user_query:
-    st.session_state.messages.append({"role":"assistant","content":user_query})
+    st.session_state.messages.append({"role":"user","content":user_query})
     st.chat_message("user").write(user_query)
 
     with st.chat_message("assistant"):
