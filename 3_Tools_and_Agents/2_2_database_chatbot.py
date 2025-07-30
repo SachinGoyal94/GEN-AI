@@ -326,7 +326,11 @@ try:
         llm,
         toolkit,
         verbose=True,
-        agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION
+        agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        handle_parsing_errors=True,
+        max_iterations=10,
+        max_execution_time=30,
+        early_stopping_method="generate"
     )
 
     # Display database info
