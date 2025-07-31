@@ -142,7 +142,9 @@ def delete_history(db: Session = Depends(get_db), user: User = Depends(get_curre
 
 if __name__ == "__main__":
     import uvicorn
+    import os
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 10000))  # Render sets PORT env variable to 10000
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
 
     
