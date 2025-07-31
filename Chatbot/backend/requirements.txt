@@ -37,3 +37,4 @@ pymysql
 passlib[bcrypt]
 python-jose
 transformers
+python-multipart
