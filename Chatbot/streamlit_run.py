@@ -1,7 +1,9 @@
 import streamlit as st
 import requests
-
-API_URL = "http://localhost:8000"
+import os
+from dotenv import load_dotenv
+load_dotenv()
+API_URL = os.getenv("API_URL")
 
 st.title("🔐 Secure Q&A Chatbot with JWT")
 
