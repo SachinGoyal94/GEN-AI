@@ -490,8 +490,8 @@ with st.sidebar:
             "🧠 llama3-8b-8192",
             "💎 gemma2-9b-it",
             "⚡ llama-3.1-8b-instant",
-            "🔬 llama3.2:latest",
-            "📱 gemma3:1b"
+#            "🔬 llama3.2:latest",
+#            "📱 gemma3:1b"
         ],
         help="Each AI model has unique capabilities and response patterns",
         format_func=lambda x: x.split(' ', 1)[1] if ' ' in x else x
