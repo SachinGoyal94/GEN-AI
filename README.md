@@ -79,6 +79,7 @@ Some projects are deployed on platforms like **Render**, **Hugging Face Spaces**
 - 🔗 [Maths Solver (Streamlit)](https://my-maths-solver.streamlit.app/)  
 - 🔗 [YouTube & Website Content Summarizer (Streamlit)](https://intelli-summarizer.streamlit.app/)
 - 🔗 [Database Ai Assistant (Streamlit)](https://database-speaks.streamlit.app/)
+- 🔗 [Chatbot (Streamlit & FastApi)](https://my-ai-mitra.streamlit.app)
 
 ---
 
