@@ -23,5 +23,5 @@ crew = Crew(
     verbose=True,
 )
 
-result = crew.kickoff(inputs={'course': 'Data Structures'})
+result = crew.kickoff(inputs={'course': 'Full Stack Web Development'})
 print(result)
