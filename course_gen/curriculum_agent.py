@@ -9,7 +9,7 @@ os.environ["LANGCHAIN_PROJECT"]="CourseLanggraph"
 
 
 from crewai import Agent
-from tools import Skill_tool,WikiPedia_tool
+from tools import Skill_tool,WikiPedia_tool,Notes_tool,Quiz_tool
 from llm import gemini_llm
 
 curriculum_creator_agent=Agent(
@@ -29,7 +29,18 @@ content_writer=Agent(
     verbose=True,
     memory=True,
     backstory="An expert in writing the content for any topic given without compromising in the content quality",
-    tools=[WikiPedia_tool],
+    tools=[WikiPedia_tool,Notes_tool],
+    allow_delegation=True,
+    llm=gemini_llm
+)
+
+quiz_maker=Agent(
+    role="Quiz Creator",
+    goal="You have to create a perfect Quiz for the course {course}",
+    verbose=True,
+    memory=True,
+    backstory="An expert in testing the knowledge of user based on the content provided for the topic keeping question levels from basic to advanced",
+    tools=[Quiz_tool],
     allow_delegation=True,
     llm=gemini_llm
 )
