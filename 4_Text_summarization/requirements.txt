@@ -23,7 +23,6 @@ pandas
 mysql-connector-python
 SQLAlchemy
 validators
-youtube_transcript_api
 unstructured
 pytube
 numexpr
@@ -34,4 +33,5 @@ tenacity
 passlib[bcrypt]
 python-jose
 transformers
+youtube-transcript-api==1.2.2
 yt_dlp==2023.11.14
