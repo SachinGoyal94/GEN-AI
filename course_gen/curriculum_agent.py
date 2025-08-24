@@ -29,7 +29,7 @@ content_writer=Agent(
     verbose=True,
     memory=True,
     backstory="An expert in writing the content for any topic given without compromising in the content quality",
-    tools=[WikiPedia_tool,Notes_tool],
+    tools=[Notes_tool],
     allow_delegation=True,
     llm=gemini_llm
 )

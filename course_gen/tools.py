@@ -1,6 +1,14 @@
+import os
+
 from crewai.tools import BaseTool
+from langchain_community.utilities.tavily_search import TAVILY_API_URL
+
 from llm import gemini_llm
 # Custom tool to fetch Skills required from the llm
+
+from langchain_tavily import TavilySearch
+os.environ["TAVILY_API_KEY"]=os.getenv('TAVILY_KEY')
+
 class SkillDiscovery(BaseTool):
     name: str = "Skill Discovery Search Tool"
     description: str = (
@@ -13,7 +21,9 @@ class SkillDiscovery(BaseTool):
                 f"list all the skills that one must possess to achieve the mastery in topic:{course} \n"
                 f"Return them as a numbered list grouped by skill areas.")
         try:
-            response=gemini_llm.predict(prompt).strip()
+            tool = TavilySearch(topic='general', max_results=5)
+            response = tool.invoke({"query": prompt})
+
             return response
         except Exception as e:
             print(e)
@@ -46,12 +56,24 @@ class Notesmaker(BaseTool):
     )
 
     def _run(self, course: str) -> str:
-        prompt=(f"You are an expert in making detailed notes for any topic . \n "
-                f"list all the notes that one must possess to achieve the mastery in topic:{course} \n"
-                f"Remember you should also create basic examples of each topic to master ."
-                f"For example if it's related to tech you can provide codes as example"
-                f"if it's related to practical knowledge then provide more pracitcal activity content"
-                f"Return them as a numbered list grouped by skill areas.")
+        prompt=( f"""You are an expert educator creating detailed teaching content.
+        
+        Create comprehensive teaching material for: {course}
+        
+        Structure your response as follows:
+        1. INTRODUCTION (1 paragraph explaining what this topic is)
+        2. KEY CONCEPTS (List and explain 5-7 main concepts)
+        3. DETAILED EXPLANATION (Step-by-step breakdown)
+        4. PRACTICAL EXAMPLES (3-4 real-world examples with code if applicable)
+        5. COMMON MISCONCEPTIONS (What students often get wrong)
+        6. PREREQUISITES (What to know before learning this)
+        7. LEARNING PROGRESSION (Beginner → Intermediate → Advanced)
+        8. PRACTICE EXERCISES (5 hands-on exercises)
+        9. FURTHER READING (Resources for deeper learning)
+        
+        Make it detailed enough for a 30-45 minute teaching session.
+        Include analogies and simple explanations for complex concepts.
+        """)
         try:
             response=gemini_llm.predict(prompt).strip()
             return response

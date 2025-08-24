@@ -13,7 +13,7 @@ crew = Crew(
 )
 
 
-result = crew.kickoff(inputs={'course': 'Artificial Intelligence'}) #gives only quiz output only
+result = crew.kickoff(inputs={'course': 'Android App Development'}) #gives only quiz output only
 
 # Get outputs
 content_output = str(content_research_task.output.raw)
@@ -25,7 +25,7 @@ print("\n=== QUIZ ===")
 print(quiz_output)
 
 # Save files
-course = "Artificial Intelligence"
+course = "Android App Development"
 base = course.replace(' ', '_').lower()
 
 # Individual files
