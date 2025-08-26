@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from database import SessionLocal, Base, engine
 from models import User, ChatHistory
-from llm_chain import get_chain
+from llm_chain import get_chain_with_history, invoke_with_history
 import os
 from dotenv import load_dotenv
+from typing import Optional
 
 load_dotenv()
 
@@ -109,40 +110,125 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 class AskPrompt(BaseModel):
     question: str
     engine: str
+    use_history: Optional[bool] = True
+    max_history: Optional[int] = 10
 
 
 @app.post("/ask")
 def ask(req: AskPrompt, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-
+    try:
         print(f"🚩 Received engine: '{req.engine}'")
-        chain = get_chain(req.engine)
-        answer = chain.invoke({"question": req.question})
+        print(f"📚 Use history: {req.use_history}")
+        print(f"👤 User ID: {user.id}")
 
-        chat = ChatHistory(user_id=user.id, question=req.question, answer=answer)
+        if req.use_history:
+            # ✅ FIXED: Get chat history in CHRONOLOGICAL order (oldest first)
+            chat_history_records = (
+                db.query(ChatHistory)
+                .filter(ChatHistory.user_id == user.id)
+                .order_by(ChatHistory.created_at.asc())  # ✅ OLDEST FIRST
+                .all()
+            )
+
+            # ✅ Take the LAST N records for recent context
+            recent_records = chat_history_records[-(req.max_history or 10):] if len(chat_history_records) > (req.max_history or 10) else chat_history_records
+
+            # ✅ Convert to proper format (already in chronological order)
+            chat_history = [
+                {"question": record.question, "answer": record.answer}
+                for record in recent_records
+            ]
+
+            print(f"📖 Retrieved {len(chat_history)} previous chat exchanges")
+            print(f"📝 Chat history preview: {chat_history[-2:] if chat_history else 'No history'}")
+
+            # Create history-aware chain
+            chain = get_chain_with_history(req.engine)
+
+            # Invoke with history
+            answer = invoke_with_history(chain, req.question, chat_history)
+
+        else:
+            # Use simple chain without history
+            print("🔥 Using simple chain without history")
+            #chain = get_chain(req.engine)
+            #answer = chain.invoke({"question": req.question})
+
+        # ✅ Save the new chat to history AFTER generating response
+        chat = ChatHistory(
+            user_id=user.id,
+            question=req.question,
+            answer=answer
+        )
         db.add(chat)
         db.commit()
+        print(f"💾 Saved new chat to database")
 
-        return {"answer": answer}
+        return {"answer": answer, "used_history": req.use_history}
 
-
+    except Exception as e:
+        print(f"❌ Error in ask endpoint: {str(e)}")
+        import traceback
+        print(f"🔍 Full traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process request: {str(e)}"
+        )
 
 
 @app.get("/history")
 def history(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    chats = db.query(ChatHistory).filter(ChatHistory.user_id == user.id).order_by(ChatHistory.created_at.desc()).all()
-    return [{"question": c.question, "answer": c.answer, "created_at": c.created_at.isoformat()} for c in chats]
+    chats = (
+        db.query(ChatHistory)
+        .filter(ChatHistory.user_id == user.id)
+        .order_by(ChatHistory.created_at.desc())  # Latest first for display
+        .all()
+    )
+    return [
+        {
+            "id": c.id,
+            "question": c.question,
+            "answer": c.answer,
+            "created_at": c.created_at.isoformat()
+        }
+        for c in chats
+    ]
 
 
 @app.delete("/history")
 def delete_history(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    db.query(ChatHistory).filter(ChatHistory.user_id == user.id).delete()
+    deleted_count = db.query(ChatHistory).filter(ChatHistory.user_id == user.id).delete()
     db.commit()
-    return {"message": "Chat history cleared"}
+    return {"message": f"Chat history cleared ({deleted_count} messages deleted)"}
+
+
+@app.get("/history/count")
+def history_count(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Get the count of user's chat history"""
+    count = db.query(ChatHistory).filter(ChatHistory.user_id == user.id).count()
+    return {"count": count}
+
+
+@app.delete("/history/{chat_id}")
+def delete_specific_chat(chat_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Delete a specific chat entry"""
+    chat = (
+        db.query(ChatHistory)
+        .filter(ChatHistory.id == chat_id, ChatHistory.user_id == user.id)
+        .first()
+    )
+
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    db.delete(chat)
+    db.commit()
+    return {"message": "Chat deleted successfully"}
 
 
 if __name__ == "__main__":
     import uvicorn
     import os
 
-    port = int(os.environ.get("PORT", 10000))  # Render sets PORT env variable to 10000
+    port = int(os.environ.get("PORT", 10000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
