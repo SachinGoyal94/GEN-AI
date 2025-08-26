@@ -1,19 +1,19 @@
 from crewai import Crew, Process
-from tasks import skill_research_task,content_research_task,Quiz_creator_task
-from curriculum_agent import curriculum_creator_agent,content_writer,quiz_maker
+from tasks import skill_research_task,content_research_task,Quiz_creator_task,quality_review_task
+from curriculum_agent import curriculum_creator_agent,content_writer,quiz_maker,research_analyst_agent,quality_assurance_agent
 from llm import gemini_llm
 from tools import Skill_tool,WikiPedia_tool,Notes_tool
 
 
 crew = Crew(
-    agents=[curriculum_creator_agent,content_writer,quiz_maker],
-    tasks=[skill_research_task,content_research_task,Quiz_creator_task],
+    agents=[curriculum_creator_agent,content_writer,quiz_maker,quality_assurance_agent],
+    tasks=[skill_research_task,content_research_task,Quiz_creator_task,quality_review_task],
     process=Process.sequential,
     verbose=True,
 )
 
 
-result = crew.kickoff(inputs={'course': 'Android App Development'}) #gives only quiz output only
+result = crew.kickoff(inputs={'course': 'Computer Vision'}) #gives only quiz output only
 
 # Get outputs
 content_output = str(content_research_task.output.raw)
@@ -25,7 +25,7 @@ print("\n=== QUIZ ===")
 print(quiz_output)
 
 # Save files
-course = "Android App Development"
+course = "Computer Vision"
 base = course.replace(' ', '_').lower()
 
 # Individual files
