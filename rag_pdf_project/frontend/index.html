@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>RAG PDF Chat — Frontend</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="container">
+<h1>RAG PDF Chat</h1>
+<div class="row">
+<label>Groq API Key: <input id="api_key" type="password"/></label>
+<label>Session ID: <input id="session_id" value="default_session"/></label>
+</div>
+
+
+<div class="row">
+<input id="pdfs" type="file" accept="application/pdf" multiple />
+<button id="uploadBtn">Upload PDFs</button>
+<span id="uploadStatus"></span>
+</div>
+
+
+<div id="chat" class="chat"></div>
+
+
+<div class="row">
+<input id="question" type="text" placeholder="Ask something about the uploaded PDFs..."/>
+<button id="askBtn">Ask</button>
+</div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
