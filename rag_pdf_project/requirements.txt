@@ -16,10 +16,7 @@ sentence-transformers
 faiss-cpu
 langchain_chroma
 streamlit
-langchain_groq
 langchain_huggingface
-duckdb
-pandas
 validators
 unstructured
 numexpr

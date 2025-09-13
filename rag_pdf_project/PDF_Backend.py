@@ -4,18 +4,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_pinecone import PineconeVectorStore
+from pinecone import Pinecone, ServerlessSpec
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
 
+# --- Load env vars ---
 load_dotenv()
+
 app = FastAPI(title="⛑️ Mine Survival Assistant API")
 
 app.add_middleware(
@@ -26,37 +29,92 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-os.environ["HF_TOKEN"]=os.getenv("HF_TOKEN_RAG")
-os.environ["GOOGLE_API_KEY"]=os.getenv("GEMINI_KEY_RAG")
+# --- Environment Variables ---
+os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN_RAG")
+os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_KEY_RAG")
 
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "mine-survival-index")
+
+# --- Embeddings & LLM ---
 embedding_model = HuggingFaceEmbeddings(model="all-MiniLM-L6-v2")
 llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
 vectorstores = {}
 chat_histories = {}
 
-pdf_paths = ["attachment_36061686899462.pdf","chap14AnnualReport2025en2.pdf","Pro forma COP - Open Pit.pdf","sanket0404_2024.pdf","wcms_162738.pdf","wcms_617123.pdf"]
-documents = []
+# --- Your PDF Files ---
+pdf_paths = [
+    "attachment_36061686899462.pdf",
+    "chap14AnnualReport2025en2.pdf",
+    "Pro forma COP - Open Pit.pdf",
+    "sanket0404_2024.pdf",
+    "wcms_162738.pdf",
+    "wcms_617123.pdf",
+]
 
-for path in pdf_paths:
-    if os.path.exists(path):
-        loader = PyPDFLoader(path)
-        documents.extend(loader.load())
-    else:
-        print(f"⚠️ PDF not found: {path}")
-
-if documents:
-    splitter = RecursiveCharacterTextSplitter(chunk_size=5000, chunk_overlap=500)
-    splits = splitter.split_documents(documents)
-    vs = Chroma.from_documents(documents=splits, embedding=embedding_model)
-
+def build_or_load_pinecone_store():
+    """Create Pinecone index if it doesn't exist and populate if empty."""
+    global vectorstores, chat_histories
     session_id = "default"
+
+    pc = Pinecone(api_key=PINECONE_API_KEY)
+
+    # --- Create index if missing ---
+    if PINECONE_INDEX_NAME not in [idx["name"] for idx in pc.list_indexes()]:
+        print(f"🆕 Creating Pinecone index: {PINECONE_INDEX_NAME}")
+        pc.create_index(
+            name=PINECONE_INDEX_NAME,
+            dimension=384,  # Must match embedding model
+            metric="cosine",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1")
+        )
+        print(f"✅ Created index: {PINECONE_INDEX_NAME}")
+
+    # --- Connect to VectorStore ---
+    vs = PineconeVectorStore.from_existing_index(
+        index_name=PINECONE_INDEX_NAME,
+        embedding=embedding_model,
+        pinecone_api_key=PINECONE_API_KEY
+    )
+
+    # --- Check if index has data ---
+    try:
+        results = vs.similarity_search("test", k=1)
+        index_empty = len(results) == 0
+    except Exception:
+        index_empty = True
+
+    if index_empty:
+        documents = []
+        for path in pdf_paths:
+            if os.path.exists(path):
+                loader = PyPDFLoader(path)
+                documents.extend(loader.load())
+            else:
+                print(f"⚠️ PDF not found: {path}")
+
+        if documents:
+            splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=200)
+            splits = splitter.split_documents(documents)
+            vs = PineconeVectorStore.from_documents(
+                documents=splits,
+                embedding=embedding_model,
+                index_name=PINECONE_INDEX_NAME,
+                pinecone_api_key=PINECONE_API_KEY
+            )
+            print(f"✅ Uploaded {len(splits)} chunks to Pinecone index '{PINECONE_INDEX_NAME}'")
+        else:
+            print("⚠️ No documents found to upload.")
+
     vectorstores[session_id] = vs.as_retriever()
     chat_histories[session_id] = ChatMessageHistory()
-    print(f"✅ Preloaded {len(pdf_paths)} PDFs into session '{session_id}'")
-else:
-    print("⚠️ No PDFs loaded. Make sure your files are in the docs/ folder.")
+    print("✅ Pinecone VectorStore ready.")
 
+# Build Pinecone index on startup
+build_or_load_pinecone_store()
+
+# --- API Models ---
 class AskRequest(BaseModel):
     session_id: str
     question: str
@@ -72,7 +130,7 @@ async def ask_question(req: AskRequest):
 
     if session_id not in vectorstores:
         return JSONResponse(
-            {"error": f"No documents available for session '{session_id}'"},
+            {"error": f"No retriever available for session '{session_id}'"},
             status_code=400,
         )
 
@@ -83,11 +141,15 @@ async def ask_question(req: AskRequest):
         "formulate a standalone question which can be understood without the chat history. "
         "Do NOT answer the question, just reformulate it if needed."
     )
+
     contextualize_q_prompt = ChatPromptTemplate.from_messages(
-        [("system", contextualize_q_system_prompt),
-         MessagesPlaceholder("chat_history"),
-         ("human", "{input}")]
+        [
+            ("system", contextualize_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
     )
+
     history_aware_retriever = create_history_aware_retriever(
         llm, retriever, contextualize_q_prompt
     )
@@ -98,10 +160,13 @@ async def ask_question(req: AskRequest):
         "If documents are available, use them. If not, rely on your general knowledge of mine safety. "
         "Format answers as a numbered list of survival steps.\n\n{context}"
     )
+
     qa_prompt = ChatPromptTemplate.from_messages(
-        [("system", system_prompt),
-         MessagesPlaceholder("chat_history"),
-         ("human", "{input}")]
+        [
+            ("system", system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
     )
 
     question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
@@ -111,20 +176,21 @@ async def ask_question(req: AskRequest):
         return chat_histories[session_id]
 
     conversational_rag_chain = RunnableWithMessageHistory(
-        rag_chain, get_session_history,
+        rag_chain,
+        get_session_history,
         input_messages_key="input",
         history_messages_key="chat_history",
-        output_messages_key="answer"
+        output_messages_key="answer",
     )
 
     resp = conversational_rag_chain.invoke(
         {"input": question},
-        config={"configurable": {"session_id": session_id}}
+        config={"configurable": {"session_id": session_id}},
     )
+
     return {"answer": resp["answer"]}
 
 if __name__ == "__main__":
     import uvicorn
-    import os
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
