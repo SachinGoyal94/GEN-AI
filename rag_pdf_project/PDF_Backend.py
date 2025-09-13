@@ -26,8 +26,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-os.environ["HF_TOKEN"]=os.getenv("HF_TOKEN")
-os.environ["GOOGLE_API_KEY"]=os.getenv("GEMINI_KEY")
+os.environ["HF_TOKEN"]=os.getenv("HF_TOKEN_SIH")
+os.environ["GOOGLE_API_KEY"]=os.getenv("GEMINI_KEY_RAG")
 
 embedding_model = HuggingFaceEmbeddings(model="all-MiniLM-L6-v2")
 llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
@@ -128,4 +128,3 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
-
