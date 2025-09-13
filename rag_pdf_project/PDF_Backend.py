@@ -26,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-os.environ["HF_TOKEN"]=os.getenv("HF_TOKEN_SIH")
+os.environ["HF_TOKEN"]=os.getenv("HF_TOKEN_RAG")
 os.environ["GOOGLE_API_KEY"]=os.getenv("GEMINI_KEY_RAG")
 
 embedding_model = HuggingFaceEmbeddings(model="all-MiniLM-L6-v2")
