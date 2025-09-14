@@ -1,26 +1,26 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.chains import create_history_aware_retriever, create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_pinecone import PineconeVectorStore
-from pinecone import Pinecone, ServerlessSpec
 from pydantic import BaseModel
-from dotenv import load_dotenv
 import os
+import numpy as np
+from dotenv import load_dotenv
+from astrapy import DataAPIClient
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_huggingface import HuggingFaceEmbeddings
 
-# --- Load env vars ---
 load_dotenv()
+os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN_RAG")
+os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_KEY_RAG")
+
+ASTRA_API_TOKEN = os.getenv("ASTRA_DB_APPLICATION_TOKEN")
+ASTRA_ENDPOINT = os.getenv("ASTRA_VECTOR_DB_ENDPOINT")
+ASTRA_TABLE = "qa_sih_demo"
 
 app = FastAPI(title="⛑️ Mine Survival Assistant API")
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,168 +29,116 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Environment Variables ---
-os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN_RAG")
-os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_KEY_RAG")
 
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "mine-survival-index")
+collection = None
+try:
+    if not ASTRA_API_TOKEN or not ASTRA_ENDPOINT:
+        raise ValueError("Missing Astra DB credentials in .env file")
 
-# --- Embeddings & LLM ---
+    client = DataAPIClient(ASTRA_API_TOKEN)
+    db = client.get_database_by_api_endpoint(ASTRA_ENDPOINT)
+    collection = db.get_collection(ASTRA_TABLE)
+    print(f"✅ Connected to Astra DB collection: {ASTRA_TABLE}")
+except Exception as e:
+    print(f"❌ Failed to connect to Astra DB: {e}")
+    collection = None
+
 embedding_model = HuggingFaceEmbeddings(model="all-MiniLM-L6-v2")
 llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
-
-vectorstores = {}
 chat_histories = {}
-
-# --- Your PDF Files ---
-pdf_paths = [
-    "attachment_36061686899462.pdf",
-    "chap14AnnualReport2025en2.pdf",
-    "Pro forma COP - Open Pit.pdf",
-    "sanket0404_2024.pdf",
-    "wcms_162738.pdf",
-    "wcms_617123.pdf",
-]
-
-def build_or_load_pinecone_store():
-    """Create Pinecone index if it doesn't exist and populate if empty."""
-    global vectorstores, chat_histories
-    session_id = "default"
-
-    pc = Pinecone(api_key=PINECONE_API_KEY)
-
-    # --- Create index if missing ---
-    if PINECONE_INDEX_NAME not in [idx["name"] for idx in pc.list_indexes()]:
-        print(f"🆕 Creating Pinecone index: {PINECONE_INDEX_NAME}")
-        pc.create_index(
-            name=PINECONE_INDEX_NAME,
-            dimension=384,  # Must match embedding model
-            metric="cosine",
-            spec=ServerlessSpec(cloud="aws", region="us-east-1")
-        )
-        print(f"✅ Created index: {PINECONE_INDEX_NAME}")
-
-    # --- Connect to VectorStore ---
-    vs = PineconeVectorStore.from_existing_index(
-        index_name=PINECONE_INDEX_NAME,
-        embedding=embedding_model,
-        pinecone_api_key=PINECONE_API_KEY
-    )
-
-    # --- Check if index has data ---
-    try:
-        results = vs.similarity_search("test", k=1)
-        index_empty = len(results) == 0
-    except Exception:
-        index_empty = True
-
-    if index_empty:
-        documents = []
-        for path in pdf_paths:
-            if os.path.exists(path):
-                loader = PyPDFLoader(path)
-                documents.extend(loader.load())
-            else:
-                print(f"⚠️ PDF not found: {path}")
-
-        if documents:
-            splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=200)
-            splits = splitter.split_documents(documents)
-            vs = PineconeVectorStore.from_documents(
-                documents=splits,
-                embedding=embedding_model,
-                index_name=PINECONE_INDEX_NAME,
-                pinecone_api_key=PINECONE_API_KEY
-            )
-            print(f"✅ Uploaded {len(splits)} chunks to Pinecone index '{PINECONE_INDEX_NAME}'")
-        else:
-            print("⚠️ No documents found to upload.")
-
-    vectorstores[session_id] = vs.as_retriever()
-    chat_histories[session_id] = ChatMessageHistory()
-    print("✅ Pinecone VectorStore ready.")
-
-# Build Pinecone index on startup
-build_or_load_pinecone_store()
-
-# --- API Models ---
 class AskRequest(BaseModel):
     session_id: str
     question: str
+
+def cosine_similarity(a, b):
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+
+def get_top_docs(query, k=3, limit=1000):
+    if collection is None:
+        return []
+
+    query_vector = np.array(embedding_model.embed_query(query))
+    try:
+        all_docs = collection.find({}, limit=limit)
+    except Exception as e:
+        print(f"❌ Astra query failed: {e}")
+        return []
+
+    scores = []
+    for doc in all_docs:
+        vector = doc.get("vector")
+        if vector is None or len(vector) == 0:
+            continue
+        vector = np.array(vector)
+        sim = cosine_similarity(query_vector, vector)
+        scores.append((sim, doc))
+
+    scores.sort(reverse=True, key=lambda x: x[0])
+    return [doc for sim, doc in scores[:k]]
+
+
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+
+
 @app.post("/ask")
 async def ask_question(req: AskRequest):
-    session_id = req.session_id
-    question = req.question
+    try:
+        session_id = req.session_id
+        question = req.question
 
-    if session_id not in vectorstores:
-        return JSONResponse(
-            {"error": f"No retriever available for session '{session_id}'"},
-            status_code=400,
-        )
+        if session_id not in chat_histories:
+            chat_histories[session_id] = ChatMessageHistory()
+        history = chat_histories[session_id]
 
-    retriever = vectorstores[session_id]
+        top_docs = get_top_docs(question, k=3)
+        if not top_docs:
+            return JSONResponse(
+                {"answer": "⚠️ No relevant documents found for this query."},
+                status_code=200
+            )
 
-    contextualize_q_system_prompt = (
-        "Given a chat history and the latest user question, "
-        "formulate a standalone question which can be understood without the chat history. "
-        "Do NOT answer the question, just reformulate it if needed."
-    )
+        context_text = "\n\n".join([doc.get("body_blob", "") for doc in top_docs])
 
-    contextualize_q_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", contextualize_q_system_prompt),
-            MessagesPlaceholder("chat_history"),
-            ("human", "{input}"),
-        ]
-    )
+        system_prompt = (
+            "⚠️ You are a Mine Disaster Survival Assistant. "
+            "Always respond with clear, step-by-step survival guidance for trapped miners. "
+            "Use the provided documents if available. "
+            "Format answers as a numbered list of survival steps.\n\n{context}"
+        ).format(context=context_text)
 
-    history_aware_retriever = create_history_aware_retriever(
-        llm, retriever, contextualize_q_prompt
-    )
-
-    system_prompt = (
-        "⚠️ You are a Mine Disaster Survival Assistant. "
-        "Always respond with clear, step-by-step survival guidance for trapped miners. "
-        "If documents are available, use them. If not, rely on your general knowledge of mine safety. "
-        "Format answers as a numbered list of survival steps.\n\n{context}"
-    )
-
-    qa_prompt = ChatPromptTemplate.from_messages(
-        [
+        qa_prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             MessagesPlaceholder("chat_history"),
-            ("human", "{input}"),
-        ]
-    )
+            ("human", "{input}")
+        ])
+        question_answer_chain = qa_prompt | llm
+        conversational_chain = RunnableWithMessageHistory(
+            question_answer_chain,
+            lambda _: history,
+            input_messages_key="input",
+            history_messages_key="chat_history",
+        )
+        resp = conversational_chain.invoke(
+            {"input": question},
+            config={"configurable": {"session_id": session_id}}
+        )
 
-    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
-    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
-    def get_session_history(_):
-        return chat_histories[session_id]
+        answer = resp.content if hasattr(resp, "content") else str(resp)
 
-    conversational_rag_chain = RunnableWithMessageHistory(
-        rag_chain,
-        get_session_history,
-        input_messages_key="input",
-        history_messages_key="chat_history",
-        output_messages_key="answer",
-    )
+        return {"answer": answer}
 
-    resp = conversational_rag_chain.invoke(
-        {"input": question},
-        config={"configurable": {"session_id": session_id}},
-    )
-
-    return {"answer": resp["answer"]}
+    except Exception as e:
+        return JSONResponse(
+            {"error": f"Server Error: {str(e)}"},
+            status_code=500
+        )
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
