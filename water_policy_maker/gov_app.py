@@ -1,33 +1,57 @@
-# gov_app.py
-import gradio as gr, os, re
+import streamlit as st
+import re, os
 from gov_crew import crew
 
-def run_pipeline(files, problem):
-    if not problem:
-        return "❌ Enter a policy problem", None
-    inputs = {"policy_problem": problem, "files": files}
-    result = crew.kickoff(inputs=inputs)
-    text = str(result)
-    fname = re.sub(r"[^\w\d-]", "_", problem)[:50] + ".md"
-    with open(fname, "w", encoding="utf-8") as f:
-        f.write(text)
-    return text, fname
+st.set_page_config(page_title="🏛 Policy Crew", page_icon="📑", layout="wide")
 
-with gr.Blocks() as demo:
-    gr.Markdown("## 🏛 Policy Crew")
-    files = gr.File(file_types=[".csv",".xlsx",".txt"], file_count="multiple", label="Upload files")
-    problem = gr.Textbox(label="Policy Problem", placeholder="e.g., Reduce groundwater depletion")
-    btn = gr.Button("Run Crew")
-    out = gr.Textbox(label="Output", lines=20)
-    download = gr.File(label="Download", visible=False)
+st.title("🏛 Government Policy Maker Assistant")
+st.markdown("Upload datasets and documents, describe a policy problem, and let the AI crew research, draft, and critique a policy for you.")
 
-    def click(f, p):
-        txt, fname = run_pipeline(f, p)
-        if fname:
-            return txt, gr.File.update(value=fname, visible=True)
-        return txt, gr.File.update(visible=False)
 
-    btn.click(click, [files, problem], [out, download])
+uploaded_files = st.file_uploader(
+    "📂 Upload files (CSV, XLSX, TXT)",
+    type=["csv", "xlsx", "xls", "txt"],
+    accept_multiple_files=True
+)
 
-if __name__ == "__main__":
-    demo.launch()
+
+policy_problem = st.text_area(
+    "📝 Policy Problem",
+    placeholder="e.g., Reduce groundwater depletion in Rajasthan",
+    height=100
+)
+
+
+if st.button("🚀 Run Policy Crew"):
+    if not policy_problem.strip():
+        st.error("❌ Please enter a policy problem.")
+    else:
+        # Save uploaded files temporarily
+        file_paths = []
+        for f in uploaded_files:
+            file_path = os.path.join("temp", f.name)
+            os.makedirs("temp", exist_ok=True)
+            with open(file_path, "wb") as out_file:
+                out_file.write(f.read())
+            file_paths.append(file_path)
+
+        st.info("⏳ Running Policy Crew... this may take a while.")
+
+        inputs = {"policy_problem": policy_problem, "files": file_paths}
+        result = crew.kickoff(inputs=inputs)
+        text = str(result)
+
+        # Show result
+        st.subheader("📑 Final Policy Output")
+        st.text_area("Output", text, height=400)
+
+        # Save to file
+        fname = re.sub(r"[^\w\d-]", "_", policy_problem)[:50] + ".md"
+        with open(fname, "w", encoding="utf-8") as f:
+            f.write(text)
+
+        st.download_button("📥 Download Result", data=text, file_name=fname, mime="text/markdown")
+
+        # Cleanup temp files
+        for fp in file_paths:
+            os.remove(fp)
