@@ -250,4 +250,7 @@ def get_history(user_id: int, persona_id: int, db: Session = Depends(get_db)):
     return [{"sender": m.sender, "message": m.message, "created_at": m.created_at.isoformat()} for m in msgs]
 
 
-
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    uvicorn.run("main:app", host="0.0.0.0")
