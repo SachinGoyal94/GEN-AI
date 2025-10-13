@@ -162,23 +162,62 @@ def chat(
     max_history: int = Form(20),
     db: Session = Depends(get_db)
 ):
+    """
+    Handles chat interactions between the user and the persona agent.
+    Retrieves last N messages from DB for context, generates an AI reply,
+    and saves both user and agent messages back into the database.
+    """
     try:
-        persona = db.query(PersonaFlow).filter(PersonaFlow.id==persona_id, PersonaFlow.user_id==user_id).first()
+        # 1️⃣ Verify persona exists and belongs to this user
+        persona = (
+            db.query(PersonaFlow)
+            .filter(PersonaFlow.id == persona_id, PersonaFlow.user_id == user_id)
+            .first()
+        )
         if not persona:
-            return JSONResponse(status_code=404, content={"error":"Persona not found"})
+            return JSONResponse(status_code=404, content={"error": "Persona not found for this user."})
 
+        # 2️⃣ Fetch last N chat messages for context
+        history_msgs = (
+            db.query(PersonaMessage)
+            .filter(PersonaMessage.persona_id == persona_id)
+            .order_by(PersonaMessage.created_at.desc())
+            .limit(max_history)
+            .all()
+        )
+
+        # Convert history into readable conversation format (oldest first)
+        context_text = "\n".join(
+            [f"{m.sender}: {m.message}" for m in reversed(history_msgs)]
+        )
+
+        # 3️⃣ Prepare the agent for this persona
         set_character_context(persona.character_name, persona.summary)
-        agent = create_character_agent(persona.character_name, persona.summary, gemini_llm, persona.tone)
+        agent = create_character_agent(
+            persona.character_name, persona.summary, gemini_llm, persona.tone
+        )
 
-        # Get last messages for context
-        history_msgs = db.query(PersonaMessage).filter(PersonaMessage.persona_id==persona_id).order_by(PersonaMessage.created_at.desc()).limit(max_history).all()
-        # Optionally summarize for AI if you want to reduce tokens
-        context_text = "\n".join([f"{m.sender}: {m.message}" for m in reversed(history_msgs)])
+        # 4️⃣ Construct full task prompt including history + latest user message
+        full_prompt = (
+            f"You are {persona.character_name}.\n"
+            f"Your tone: {persona.tone}\n\n"
+            f"Conversation so far:\n{context_text}\n\n"
+            f"Now the user says: {user_message}\n\n"
+            f"Reply as {persona.character_name}, keeping the same tone and personality."
+        )
 
-        task = create_character_response_task(persona.character_name, user_message, agent, persona.tone)
+        # 5️⃣ Create a CrewAI task with this full prompt
+        task = Task(
+            description=full_prompt,
+            expected_output=f"{persona.tone}-style response from {persona.character_name}",
+            tools=[character_tool],
+            agent=agent
+        )
+
         crew = Crew(agents=[agent], tasks=[task])
         result = crew.kickoff()
 
+        # 6️⃣ Extract the model output safely
         response_text = ""
         if hasattr(result, "raw") and result.raw:
             response_text = result.raw
@@ -186,16 +225,23 @@ def chat(
             response_text = str(result.output)
         elif hasattr(result, "results") and len(result.results) > 0:
             r = result.results[0]
-            response_text = getattr(r, "raw", str(r)) or getattr(r, "output", "")
+            response_text = getattr(r, "raw", "") or getattr(r, "output", "")
+        else:
+            response_text = "No valid output from model."
 
-        # Store messages
+        response_text = response_text.strip()
+
+        # 7️⃣ Save both user and agent messages in the DB
         db.add(PersonaMessage(persona_id=persona_id, sender="user", message=user_message))
         db.add(PersonaMessage(persona_id=persona_id, sender="agent", message=response_text))
         db.commit()
 
-        return {"response": response_text.strip()}
+        # 8️⃣ Return final response
+        return {"response": response_text}
 
     except Exception as e:
+        import traceback
+        print("❌ Chat Error:", traceback.format_exc())
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/history/{user_id}/{persona_id}")
