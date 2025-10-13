@@ -281,4 +281,4 @@ def get_history(user_id: int, persona_id: int, db: Session = Depends(get_db)):
 @app.on_event("startup")
 async def startup_event():
     logger.info("🎉 Application startup complete!")
-    logger.info(f"📡 Server running on port {os.getenv('PORT', 8000)}")
+    logger.info(f"📡 Server running on port {os.getenv('PORT', 8000)}") 
