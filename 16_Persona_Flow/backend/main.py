@@ -4,6 +4,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
+import sys
+import logging
+
+# ADD THIS LOGGING
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
+
+logger.info("🚀 Starting application...")
 from dotenv import load_dotenv
 from crewai import LLM, Agent, Task, Crew
 from crewai.tools import BaseTool
@@ -256,3 +268,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))  # fallback to 8000 locally
     uvicorn.run("main:app", host="0.0.0.0", port=port)
 
+@app.on_event("startup")
+async def startup_event():
+    logger.info("🎉 Application startup complete!")
+    logger.info(f"📡 Server should be running on port {os.getenv('PORT', 8000)}")
