@@ -7,7 +7,7 @@ import os
 import sys
 import logging
 
-# ADD THIS LOGGING
+# Logging setup
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -15,20 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-logger.info("🚀 Starting application...")
-from dotenv import load_dotenv
-from crewai import LLM, Agent, Task, Crew
-from crewai.tools import BaseTool
-from pydantic import BaseModel, Field
-from models_persona import PersonaFlow, PersonaMessage
-from database_persona import SessionLocal, Base, engine
-from langchain_google_genai import ChatGoogleGenerativeAI
-
-load_dotenv()
-GEMINI_KEY = os.getenv("GEMINI_KEY")
-if not GEMINI_KEY:
-    raise ValueError("❌ GEMINI_KEY missing in .env file")
-
+# Create FastAPI app FIRST
 app = FastAPI(title="Persona Flow Microservice", version="1.0")
 app.add_middleware(
     CORSMiddleware,
@@ -38,7 +25,59 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+logger.info("✅ FastAPI app created - port will bind now")
+
+# Now do heavy imports AFTER app is created
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+
+logger.info("🔄 Loading heavy dependencies...")
+
+from crewai import LLM, Agent, Task, Crew
+from crewai.tools import BaseTool
+from models_persona import PersonaFlow, PersonaMessage
+from database_persona import SessionLocal, Base, engine
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+logger.info("✅ All imports loaded")
+
+load_dotenv()
+GEMINI_KEY = os.getenv("GEMINI_KEY")
+if not GEMINI_KEY:
+    logger.error("❌ GEMINI_KEY missing!")
+    raise ValueError("❌ GEMINI_KEY missing")
+
+logger.info("✅ GEMINI_KEY found")
+
 Base.metadata.create_all(bind=engine)
+
+# ================= LAZY INITIALIZATION =================
+_gemini_llm = None
+_gemini_chat_llm = None
+
+def get_gemini_llm():
+    global _gemini_llm
+    if _gemini_llm is None:
+        logger.info("🔄 Initializing Gemini LLM...")
+        _gemini_llm = LLM(
+            model="gemini/gemini-2.0-flash-lite",
+            api_key=GEMINI_KEY,
+            temperature=0.7
+        )
+        logger.info("✅ Gemini LLM ready")
+    return _gemini_llm
+
+def get_gemini_chat_llm():
+    global _gemini_chat_llm
+    if _gemini_chat_llm is None:
+        logger.info("🔄 Initializing Gemini Chat LLM...")
+        _gemini_chat_llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash-lite",
+            google_api_key=GEMINI_KEY,
+            temperature=0.4
+        )
+        logger.info("✅ Gemini Chat LLM ready")
+    return _gemini_chat_llm
 
 # ================= DATABASE SESSION =================
 def get_db():
@@ -47,18 +86,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-# ================= CREWAI SETUP =================
-gemini_llm = LLM(
-    model="gemini/gemini-2.0-flash-lite",
-    api_key=GEMINI_KEY,
-    temperature=0.7
-)
-gemini_chat_llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash-lite",
-    google_api_key=GEMINI_KEY,
-    temperature=0.4
-)
 
 # ================= TOOLS =================
 _current_character_summary = ""
@@ -71,6 +98,7 @@ def set_character_context(character_name: str, summary: str):
 
 class CharacterToolInput(BaseModel):
     query: str
+
 class CharacterTool(BaseTool):
     name: str = "Character Information Tool"
     description: str = "Provides personality and behavior insights."
@@ -90,22 +118,22 @@ character_tool = CharacterTool()
 # ================== CHARACTER SUMMARY ==================
 def generate_character_summary(character_name: str, tone: str) -> str:
     prompt = f"Generate a concise personality profile for {character_name} in {tone} tone."
-    response = gemini_chat_llm.invoke(prompt)
+    response = get_gemini_chat_llm().invoke(prompt)
     return response.content
 
 def generate_custom_character_summary(user_prompt: str, tone: str) -> str:
     prompt = f"Create a character based on: '{user_prompt}' with tone {tone}."
-    response = gemini_chat_llm.invoke(prompt)
+    response = get_gemini_chat_llm().invoke(prompt)
     return response.content
 
-def create_character_agent(character_name: str, character_summary: str, llm, tone: str):
+def create_character_agent(character_name: str, character_summary: str, tone: str):
     return Agent(
         name=f"{character_name} Agent",
         role=f"Conversational agent ({tone})",
         goal=f"Reply authentically as {character_name}",
         backstory=character_summary,
         tools=[character_tool],
-        llm=llm,
+        llm=get_gemini_llm(),
         verbose=True,
         memory=False,
         allow_delegation=False,
@@ -121,10 +149,14 @@ def create_character_response_task(character_name: str, user_message: str, agent
     )
 
 # ================== ROUTES ==================
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "Persona Flow Microservice"}
+
 @app.post("/set_character/")
 def set_character(
     user_id: int = Form(...),
-    mode: str = Form(...),  # 'auto' or 'custom'
+    mode: str = Form(...),
     character_name: Optional[str] = Form(None),
     custom_prompt: Optional[str] = Form(None),
     tone: str = Form("neutral"),
@@ -144,7 +176,6 @@ def set_character(
         else:
             summary = generate_custom_character_summary(custom_prompt, tone)
 
-        # Store in DB
         persona = PersonaFlow(
             user_id=user_id,
             character_name=name_to_store,
@@ -156,14 +187,14 @@ def set_character(
         db.commit()
         db.refresh(persona)
 
-        # Set context for runtime agent
         set_character_context(name_to_store, summary)
-        agent = create_character_agent(name_to_store, summary, gemini_llm, tone)
+        agent = create_character_agent(name_to_store, summary, tone)
         persona.agent = agent
 
         return {"persona_id": persona.id, "character_name": name_to_store, "summary": summary}
 
     except Exception as e:
+        logger.error(f"Error in set_character: {str(e)}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/chat/")
@@ -174,13 +205,7 @@ def chat(
     max_history: int = Form(20),
     db: Session = Depends(get_db)
 ):
-    """
-    Handles chat interactions between the user and the persona agent.
-    Retrieves last N messages from DB for context, generates an AI reply,
-    and saves both user and agent messages back into the database.
-    """
     try:
-        # 1️⃣ Verify persona exists and belongs to this user
         persona = (
             db.query(PersonaFlow)
             .filter(PersonaFlow.id == persona_id, PersonaFlow.user_id == user_id)
@@ -189,7 +214,6 @@ def chat(
         if not persona:
             return JSONResponse(status_code=404, content={"error": "Persona not found for this user."})
 
-        # 2️⃣ Fetch last N chat messages for context
         history_msgs = (
             db.query(PersonaMessage)
             .filter(PersonaMessage.persona_id == persona_id)
@@ -198,18 +222,15 @@ def chat(
             .all()
         )
 
-        # Convert history into readable conversation format (oldest first)
         context_text = "\n".join(
             [f"{m.sender}: {m.message}" for m in reversed(history_msgs)]
         )
 
-        # 3️⃣ Prepare the agent for this persona
         set_character_context(persona.character_name, persona.summary)
         agent = create_character_agent(
-            persona.character_name, persona.summary, gemini_llm, persona.tone
+            persona.character_name, persona.summary, persona.tone
         )
 
-        # 4️⃣ Construct full task prompt including history + latest user message
         full_prompt = (
             f"You are {persona.character_name}.\n"
             f"Your tone: {persona.tone}\n\n"
@@ -218,7 +239,6 @@ def chat(
             f"Reply as {persona.character_name}, keeping the same tone and personality."
         )
 
-        # 5️⃣ Create a CrewAI task with this full prompt
         task = Task(
             description=full_prompt,
             expected_output=f"{persona.tone}-style response from {persona.character_name}",
@@ -229,7 +249,6 @@ def chat(
         crew = Crew(agents=[agent], tasks=[task])
         result = crew.kickoff()
 
-        # 6️⃣ Extract the model output safely
         response_text = ""
         if hasattr(result, "raw") and result.raw:
             response_text = result.raw
@@ -243,17 +262,15 @@ def chat(
 
         response_text = response_text.strip()
 
-        # 7️⃣ Save both user and agent messages in the DB
         db.add(PersonaMessage(persona_id=persona_id, sender="user", message=user_message))
         db.add(PersonaMessage(persona_id=persona_id, sender="agent", message=response_text))
         db.commit()
 
-        # 8️⃣ Return final response
         return {"response": response_text}
 
     except Exception as e:
         import traceback
-        print("❌ Chat Error:", traceback.format_exc())
+        logger.error(f"Chat Error: {traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/history/{user_id}/{persona_id}")
@@ -261,14 +278,7 @@ def get_history(user_id: int, persona_id: int, db: Session = Depends(get_db)):
     msgs = db.query(PersonaMessage).filter(PersonaMessage.persona_id==persona_id).order_by(PersonaMessage.created_at.asc()).all()
     return [{"sender": m.sender, "message": m.message, "created_at": m.created_at.isoformat()} for m in msgs]
 
-if __name__ == "__main__":
-    import uvicorn
-    import os
-
-    port = int(os.environ.get("PORT", 8000))  # fallback to 8000 locally
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
-
 @app.on_event("startup")
 async def startup_event():
     logger.info("🎉 Application startup complete!")
-    logger.info(f"📡 Server should be running on port {os.getenv('PORT', 8000)}")
+    logger.info(f"📡 Server running on port {os.getenv('PORT', 8000)}")
