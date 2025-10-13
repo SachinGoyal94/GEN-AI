@@ -253,5 +253,5 @@ def get_history(user_id: int, persona_id: int, db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
     import os
-    port = int(os.environ.get("PORT", 10010))
+    port = int(os.environ.get("PORT", 11000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
