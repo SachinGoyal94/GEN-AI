@@ -249,8 +249,8 @@ def get_history(user_id: int, persona_id: int, db: Session = Depends(get_db)):
     msgs = db.query(PersonaMessage).filter(PersonaMessage.persona_id==persona_id).order_by(PersonaMessage.created_at.asc()).all()
     return [{"sender": m.sender, "message": m.message, "created_at": m.created_at.isoformat()} for m in msgs]
 
-
 if __name__ == "__main__":
     import uvicorn
     import os
-    uvicorn.run("main:app", host="0.0.0.0")
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
