@@ -66,7 +66,7 @@ The repository is organized into modular folders, each representing a complete G
    ```bash
    streamlit run app.py
    # or
-   python main.py
+   python main_persona.py
    ```
 
 ---
