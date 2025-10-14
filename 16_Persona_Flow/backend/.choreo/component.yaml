@@ -1,0 +1,28 @@
+schemaVersion: "1.2"
+
+endpoints:
+  - name: persona-flow-api
+    displayName: Persona Flow API
+    type: REST
+    service:
+      basePath: /
+      port: 10000
+    networkVisibilities:
+      - Project
+      - Public
+
+build:
+  commands:
+    - pip install -r requirements.txt
+
+runtime:
+  type: python
+  version: 3.11
+
+start:
+  command: python main.py
+
+dependencies:
+  connectionReferences:
+    - name: google-genai-connection
+      resourceRef: thirdparty:google-genai/v1
