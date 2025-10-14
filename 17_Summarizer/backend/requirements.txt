@@ -1,9 +1,9 @@
 fastapi
 uvicorn
 python-dotenv
-youtube-transcript-api
 langchain
 langchain-google-genai
 langchain-community
 unstructured
 requests
+validators
