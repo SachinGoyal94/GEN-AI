@@ -2,22 +2,25 @@ from fastapi import FastAPI, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional
 import os
 from dotenv import load_dotenv
 from crewai import LLM, Agent, Task, Crew
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from models_persona import PersonaFlow, PersonaMessage
 from database_persona import SessionLocal, Base, engine
 from langchain_google_genai import ChatGoogleGenerativeAI
+from models_user import Users
 
+# ================= LOAD ENVIRONMENT =================
 load_dotenv()
 GEMINI_KEY = os.getenv("GEMINI_KEY")
 if not GEMINI_KEY:
     raise ValueError("⚠ GEMINI_KEY missing in .env file")
 
-app = FastAPI(title="Persona Flow Microservice", version="1.0")
+# ================= FASTAPI SETUP =================
+app = FastAPI(title="Persona Flow Microservice", version="1.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,7 +31,6 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
-
 # ================= DATABASE SESSION =================
 def get_db():
     db = SessionLocal()
@@ -36,7 +38,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
 
 # ================= CREWAI SETUP =================
 gemini_llm = LLM(
@@ -82,7 +83,6 @@ class CharacterTool(BaseTool):
 
 character_tool = CharacterTool()
 
-
 # ================== CHARACTER SUMMARY ==================
 def generate_character_summary(character_name: str, tone: str) -> str:
     prompt = f"Generate a concise personality profile for {character_name} in {tone} tone."
@@ -113,9 +113,27 @@ def create_character_agent(character_name: str, character_summary: str, llm, ton
 
 # ================== ROUTES ==================
 
+@app.get("/get_user_id/{username}")
+def get_user_id(username: str, db: Session = Depends(get_db)):
+    """
+    Fetch user_id from shared 'users' table using username.
+    """
+    try:
+        user = db.query(Users).filter(Users.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return {"user_id": user.id, "username": user.username}
+
+    except Exception as e:
+        import traceback
+        print("❌ Get User ID Error:", traceback.format_exc())
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 @app.post("/set_character/")
 def set_character(
-        user_id: int = Form(...),
+        username: str = Form(...),
         mode: str = Form(...),  # 'auto' or 'custom'
         character_name: Optional[str] = Form(None),
         custom_prompt: Optional[str] = Form(None),
@@ -124,15 +142,20 @@ def set_character(
 ):
     """
     Creates a new character persona for a user.
-    Each persona gets a unique persona_id (auto-increment primary key).
+    Automatically fetches user_id from username in shared users table.
     """
     try:
+        # Get user_id using username
+        user = db.query(Users).filter(Users.username == username).first()
+        if not user:
+            return JSONResponse(status_code=404, content={"error": "User not found"})
+        user_id = user.id
+
         if mode == "auto" and not character_name:
             return JSONResponse(status_code=400, content={"error": "character_name required for auto mode"})
         if mode == "custom" and not custom_prompt:
             return JSONResponse(status_code=400, content={"error": "custom_prompt required for custom mode"})
 
-        summary = ""
         name_to_store = character_name if mode == "auto" else "Custom Character"
 
         if mode == "auto":
@@ -140,7 +163,7 @@ def set_character(
         else:
             summary = generate_custom_character_summary(custom_prompt, tone)
 
-        # Store in DB - persona.id will be unique across all users
+        # Store persona in DB linked with this user
         persona = PersonaFlow(
             user_id=user_id,
             character_name=name_to_store,
@@ -153,7 +176,9 @@ def set_character(
         db.refresh(persona)
 
         return {
-            "persona_id": persona.id,  # Unique ID for this character
+            "persona_id": persona.id,
+            "user_id": user_id,
+            "username": username,
             "character_name": name_to_store,
             "summary": summary,
             "tone": tone,
@@ -164,14 +189,14 @@ def set_character(
     except Exception as e:
         import traceback
         print("❌ Set Character Error:", traceback.format_exc())
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return JSONResponse(status_code=500, content={"error": str(e)}
+                            )
 
 
 @app.get("/user/{user_id}/characters")
 def get_user_characters(user_id: int, db: Session = Depends(get_db)):
     """
     Get all characters/personas created by a specific user.
-    Shows character list with message counts.
     """
     try:
         personas = (
@@ -183,7 +208,6 @@ def get_user_characters(user_id: int, db: Session = Depends(get_db)):
 
         result = []
         for persona in personas:
-            # Count messages for this persona
             message_count = db.query(PersonaMessage).filter(
                 PersonaMessage.persona_id == persona.id
             ).count()
@@ -210,52 +234,6 @@ def get_user_characters(user_id: int, db: Session = Depends(get_db)):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-@app.get("/character/{persona_id}/details")
-def get_character_details(
-        persona_id: int,
-        user_id: Optional[int] = None,
-        db: Session = Depends(get_db)
-):
-    """
-    Get detailed information about a specific character.
-    Optional user_id for verification.
-    """
-    try:
-        query = db.query(PersonaFlow).filter(PersonaFlow.id == persona_id)
-
-        # If user_id provided, verify ownership
-        if user_id:
-            query = query.filter(PersonaFlow.user_id == user_id)
-
-        persona = query.first()
-
-        if not persona:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "Character not found or access denied"}
-            )
-
-        message_count = db.query(PersonaMessage).filter(
-            PersonaMessage.persona_id == persona_id
-        ).count()
-
-        return {
-            "persona_id": persona.id,
-            "user_id": persona.user_id,
-            "character_name": persona.character_name,
-            "mode": persona.mode,
-            "tone": persona.tone,
-            "summary": persona.summary,
-            "created_at": persona.created_at.isoformat(),
-            "message_count": message_count
-        }
-
-    except Exception as e:
-        import traceback
-        print("❌ Get Character Details Error:", traceback.format_exc())
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
 @app.post("/chat/")
 def chat(
         user_id: int = Form(...),
@@ -265,23 +243,17 @@ def chat(
         db: Session = Depends(get_db)
 ):
     """
-    Chat with a specific persona character.
-    Maintains conversation history in persona_messages table.
+    Chat with a specific persona.
     """
     try:
-        # 1️⃣ Verify persona exists and belongs to this user
         persona = (
             db.query(PersonaFlow)
             .filter(PersonaFlow.id == persona_id, PersonaFlow.user_id == user_id)
             .first()
         )
         if not persona:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "Persona not found for this user"}
-            )
+            return JSONResponse(status_code=404, content={"error": "Persona not found for this user"})
 
-        # 2️⃣ Fetch last N chat messages for context
         history_msgs = (
             db.query(PersonaMessage)
             .filter(PersonaMessage.persona_id == persona_id)
@@ -290,27 +262,23 @@ def chat(
             .all()
         )
 
-        # Convert history into readable conversation format (oldest first)
         context_text = "\n".join(
             [f"{m.sender}: {m.message}" for m in reversed(history_msgs)]
         )
 
-        # 3️⃣ Prepare the agent for this persona
         set_character_context(persona.character_name, persona.summary)
         agent = create_character_agent(
             persona.character_name, persona.summary, gemini_llm, persona.tone
         )
 
-        # 4️⃣ Construct full task prompt including history + latest user message
         full_prompt = (
             f"You are {persona.character_name}.\n"
             f"Your tone: {persona.tone}\n\n"
             f"Conversation so far:\n{context_text}\n\n"
             f"Now the user says: {user_message}\n\n"
-            f"Reply as {persona.character_name}, keeping the same tone and personality."
+            f"Reply as {persona.character_name}, keeping the same tone."
         )
 
-        # 5️⃣ Create a CrewAI task with this full prompt
         task = Task(
             description=full_prompt,
             expected_output=f"{persona.tone}-style response from {persona.character_name}",
@@ -321,7 +289,6 @@ def chat(
         crew = Crew(agents=[agent], tasks=[task])
         result = crew.kickoff()
 
-        # 6️⃣ Extract the model output safely
         response_text = ""
         if hasattr(result, "raw") and result.raw:
             response_text = result.raw
@@ -335,12 +302,10 @@ def chat(
 
         response_text = response_text.strip()
 
-        # 7️⃣ Save both user and agent messages in the DB
         db.add(PersonaMessage(persona_id=persona_id, sender="user", message=user_message))
         db.add(PersonaMessage(persona_id=persona_id, sender="agent", message=response_text))
         db.commit()
 
-        # 8️⃣ Return final response
         return {
             "persona_id": persona_id,
             "character_name": persona.character_name,
@@ -356,11 +321,9 @@ def chat(
 @app.get("/history/{user_id}/{persona_id}")
 def get_history(user_id: int, persona_id: int, db: Session = Depends(get_db)):
     """
-    Get chat history for a specific persona.
-    Verifies user owns the persona before returning messages.
+    Fetch chat history for a persona.
     """
     try:
-        # Verify ownership
         persona = (
             db.query(PersonaFlow)
             .filter(PersonaFlow.id == persona_id, PersonaFlow.user_id == user_id)
@@ -368,12 +331,8 @@ def get_history(user_id: int, persona_id: int, db: Session = Depends(get_db)):
         )
 
         if not persona:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "Persona not found for this user"}
-            )
+            return JSONResponse(status_code=404, content={"error": "Persona not found for this user"})
 
-        # Get messages
         msgs = (
             db.query(PersonaMessage)
             .filter(PersonaMessage.persona_id == persona_id)
@@ -409,8 +368,7 @@ def delete_character(
         db: Session = Depends(get_db)
 ):
     """
-    Delete a character and all its messages.
-    Cascade delete will remove associated persona_messages.
+    Delete a persona and its messages.
     """
     try:
         persona = (
@@ -420,13 +378,10 @@ def delete_character(
         )
 
         if not persona:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "Character not found or access denied"}
-            )
+            return JSONResponse(status_code=404, content={"error": "Character not found or access denied"})
 
         character_name = persona.character_name
-        db.delete(persona)  # Cascade will delete messages too
+        db.delete(persona)
         db.commit()
 
         return {
@@ -449,6 +404,5 @@ def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
