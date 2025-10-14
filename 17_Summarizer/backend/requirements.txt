@@ -7,3 +7,4 @@ langchain-community
 unstructured
 requests
 validators
+youtube_transcript_api
