@@ -135,14 +135,13 @@ def get_user_id(username: str, db: Session = Depends(get_db)):
 def set_character(
         username: str = Form(...),
         mode: str = Form(...),  # 'auto' or 'custom'
-        character_name: Optional[str] = Form(None),
-        custom_prompt: Optional[str] = Form(None),
-        tone: str = Form("neutral"),
+        character_name: str = Form(...),  # REQUIRED for both modes
+        custom_prompt: Optional[str] = Form(None),  # only required for custom mode
+        tone: str = Form("neutral"),  # user can override tone
         db: Session = Depends(get_db)
 ):
     """
     Creates a new character persona for a user.
-    Automatically fetches user_id from username in shared users table.
     """
     try:
         # Get user_id using username
@@ -151,46 +150,33 @@ def set_character(
             return JSONResponse(status_code=404, content={"error": "User not found"})
         user_id = user.id
 
-        if mode == "auto" and not character_name:
-            return JSONResponse(status_code=400, content={"error": "character_name required for auto mode"})
+        # Validate mode
+        if mode not in ["auto", "custom"]:
+            return JSONResponse(status_code=400, content={"error": "Invalid mode. Must be 'auto' or 'custom'."})
+
+        # Validate custom_prompt for custom mode
         if mode == "custom" and not custom_prompt:
             return JSONResponse(status_code=400, content={"error": "custom_prompt required for custom mode"})
 
-        name_to_store = character_name if mode == "auto" else "Custom Character"
-
-        if mode == "auto":
-            summary = generate_character_summary(character_name, tone)
-        else:
-            summary = generate_custom_character_summary(custom_prompt, tone)
-
-        # Store persona in DB linked with this user
+        # Create persona
         persona = PersonaFlow(
             user_id=user_id,
-            character_name=name_to_store,
+            character_name=character_name,  # user-defined
             mode=mode,
-            tone=tone,
-            summary=summary
+            tone=tone,  # user-defined or default
+            summary=custom_prompt if mode == "custom" else "",  # summary empty for auto mode initially
         )
+
         db.add(persona)
         db.commit()
         db.refresh(persona)
 
-        return {
-            "persona_id": persona.id,
-            "user_id": user_id,
-            "username": username,
-            "character_name": name_to_store,
-            "summary": summary,
-            "tone": tone,
-            "mode": mode,
-            "created_at": persona.created_at.isoformat()
-        }
+        return {"success": True, "character_id": persona.id, "character_name": persona.character_name,
+                "tone": persona.tone}
 
     except Exception as e:
-        import traceback
-        print("❌ Set Character Error:", traceback.format_exc())
-        return JSONResponse(status_code=500, content={"error": str(e)}
-                            )
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/user/{user_id}/characters")
