@@ -8,3 +8,8 @@ unstructured
 requests
 validators
 youtube_transcript_api
+fastapi
+pydantic
+python-multipart
+crewai
+crewai_tools
