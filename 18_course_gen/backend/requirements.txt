@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-dotenv
+langchain
+langchain-google-genai
+langchain-community
+unstructured
+requests
+validators
+youtube_transcript_api
+fastapi
+pydantic
+python-multipart
+crewai
+crewai_tools
+tavily-python==0.7.6
+langchain-tavily==0.2.6
