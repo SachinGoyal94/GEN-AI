@@ -13,4 +13,3 @@ sqlalchemy
 pymysql
 passlib[bcrypt]
 python-jose
-langchain.agents.agent_types
