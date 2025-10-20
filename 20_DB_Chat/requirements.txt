@@ -1,0 +1,14 @@
+python-dotenv
+langchain_google_genai
+langchain_community
+mysql-connector-python
+SQLAlchemy
+validators
+fastapi
+langserve
+uvicorn
+pymongo
+sqlalchemy
+pymysql
+passlib[bcrypt]
+python-jose
