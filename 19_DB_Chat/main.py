@@ -6,7 +6,6 @@ from sqlalchemy import create_engine
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langchain_community.utilities.sql_database import SQLDatabase
-from langchain.agents.agent_types import AgentType
 from langchain_google_genai import ChatGoogleGenerativeAI
 load_dotenv()
 app = FastAPI(title="Database Speaks - AI SQL Assistant", version="1.0")
@@ -44,7 +43,6 @@ def get_agent(db: SQLDatabase):
             llm=llm,
             toolkit=toolkit,
             verbose=True,
-            agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
             handle_parsing_errors=True,
             top_k = 20,
             max_iterations=30,
