@@ -2,7 +2,7 @@ import os
 import asyncio
 import re
 from pyflowchart import Flowchart, output_html
-from pyppeteer import launch
+from playwright.async_api import async_playwright
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, LLM
 
@@ -119,22 +119,39 @@ def generate_flowchart_html(code: str, field_name: str, html_filename="flowchart
     fc = Flowchart.from_code(code, field=field_name, inner=False)
     flowchart_str = fc.flowchart()
     output_html(html_filename, field_name, flowchart_str)
-    return html_filename
+    return html_filename, flowchart_str
 
 
-# Render HTML to PNG
-async def render_html_to_png(html_file: str, png_file: str):
-    browser = await launch()
-    page = await browser.newPage()
-    abs_path = f"file:///{os.path.abspath(html_file)}"
-    await page.goto(abs_path, {'waitUntil': 'networkidle0'})
-    await page.screenshot({'path': png_file})
-    await browser.close()
-    print(f"✅ Flowchart saved as {png_file}")
+# Render HTML to PNG and download SVG using Playwright
+async def render_and_download(html_file: str, svg_content: str, png_file: str, svg_file: str):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)  # Set to False to see what's happening
+        page = await browser.new_page()
+
+        # Load the HTML file
+        abs_path = f"file:///{os.path.abspath(html_file).replace(os.sep, '/')}"
+        await page.goto(abs_path, wait_until='networkidle')
+
+        # Wait for flowchart to render
+        await page.wait_for_selector('svg', timeout=5000)
+
+        # Take screenshot of the SVG element only
+        svg_element = await page.query_selector('svg')
+        if svg_element:
+            await svg_element.screenshot(path=png_file)
+            print(f"✅ Flowchart PNG saved as {png_file}")
+
+        # Save SVG file directly
+        with open(svg_file, 'w', encoding='utf-8') as f:
+            f.write(svg_content)
+        print(f"✅ Flowchart SVG saved as {svg_file}")
+
+        await browser.close()
 
 
 # Main function
-def generate_flowchart_from_prompt(user_prompt: str, html_file="flowchart.html", png_file="flowchart.png"):
+def generate_flowchart_from_prompt(user_prompt: str, html_file="flowchart.html", png_file="flowchart.png",
+                                   svg_file="flowchart.svg"):
     # Step 1: Generate code
     python_code = generate_python_code(user_prompt)
 
@@ -145,9 +162,11 @@ def generate_flowchart_from_prompt(user_prompt: str, html_file="flowchart.html",
     function_name = detect_first_function(cleaned_code)
     print(f"\n🔹 Detected function for flowchart: {function_name}")
 
-    # Step 4: Generate HTML + PNG
-    html_file = generate_flowchart_html(cleaned_code, function_name, html_file)
-    asyncio.run(render_html_to_png(html_file, png_file))
+    # Step 4: Generate HTML and get SVG content
+    html_file, svg_content = generate_flowchart_html(cleaned_code, function_name, html_file)
+
+    # Step 5: Render PNG and save SVG
+    asyncio.run(render_and_download(html_file, svg_content, png_file, svg_file))
 
 
 # Example usage
@@ -155,4 +174,4 @@ if __name__ == "__main__":
     print("🤖 CrewAI Flowchart Generator (Fully Automatic with Code Cleaning)")
     user_prompt = input("Enter your flowchart request in plain English:\n")
     generate_flowchart_from_prompt(user_prompt)
-    print("🎉 Done! Check the PNG file for the flowchart.")
+    print("🎉 Done! Check the SVG and PNG files for the flowchart.")
