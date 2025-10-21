@@ -26,7 +26,6 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# ✅ CORS for Streamlit
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -44,12 +43,15 @@ def get_db():
         db.close()
 
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+def get_password_hash(password: str):
+    # Encode and truncate to 72 bytes (bcrypt limit)
+    return pwd_context.hash(password.encode('utf-8')[:72])
 
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
+def verify_password(plain_password: str, hashed_password: str):
+    # Apply same truncation during verification
+    return pwd_context.verify(plain_password.encode('utf-8')[:72], hashed_password)
+
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
@@ -122,7 +124,6 @@ def ask(req: AskPrompt, db: Session = Depends(get_db), user: User = Depends(get_
         print(f"👤 User ID: {user.id}")
 
         if req.use_history:
-            # ✅ FIXED: Get chat history in CHRONOLOGICAL order (oldest first)
             chat_history_records = (
                 db.query(ChatHistory)
                 .filter(ChatHistory.user_id == user.id)
@@ -130,10 +131,8 @@ def ask(req: AskPrompt, db: Session = Depends(get_db), user: User = Depends(get_
                 .all()
             )
 
-            # ✅ Take the LAST N records for recent context
             recent_records = chat_history_records[-(req.max_history or 10):] if len(chat_history_records) > (req.max_history or 10) else chat_history_records
 
-            # ✅ Convert to proper format (already in chronological order)
             chat_history = [
                 {"question": record.question, "answer": record.answer}
                 for record in recent_records
@@ -142,19 +141,13 @@ def ask(req: AskPrompt, db: Session = Depends(get_db), user: User = Depends(get_
             print(f"📖 Retrieved {len(chat_history)} previous chat exchanges")
             print(f"📝 Chat history preview: {chat_history[-2:] if chat_history else 'No history'}")
 
-            # Create history-aware chain
             chain = get_chain_with_history(req.engine)
 
-            # Invoke with history
             answer = invoke_with_history(chain, req.question, chat_history)
 
         else:
-            # Use simple chain without history
             print("🔥 Using simple chain without history")
-            #chain = get_chain(req.engine)
-            #answer = chain.invoke({"question": req.question})
 
-        # ✅ Save the new chat to history AFTER generating response
         chat = ChatHistory(
             user_id=user.id,
             question=req.question,
@@ -181,7 +174,7 @@ def history(db: Session = Depends(get_db), user: User = Depends(get_current_user
     chats = (
         db.query(ChatHistory)
         .filter(ChatHistory.user_id == user.id)
-        .order_by(ChatHistory.created_at.desc())  # Latest first for display
+        .order_by(ChatHistory.created_at.desc())
         .all()
     )
     return [
@@ -204,14 +197,12 @@ def delete_history(db: Session = Depends(get_db), user: User = Depends(get_curre
 
 @app.get("/history/count")
 def history_count(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """Get the count of user's chat history"""
     count = db.query(ChatHistory).filter(ChatHistory.user_id == user.id).count()
     return {"count": count}
 
 
 @app.delete("/history/{chat_id}")
 def delete_specific_chat(chat_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """Delete a specific chat entry"""
     chat = (
         db.query(ChatHistory)
         .filter(ChatHistory.id == chat_id, ChatHistory.user_id == user.id)
