@@ -9,6 +9,6 @@ uvicorn
 python-jose
 imgkit
 pyppeteer
-webdriver_manage
 selenium
+webdriver-manager
 playwright
