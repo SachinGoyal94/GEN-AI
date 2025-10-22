@@ -1,0 +1,14 @@
+python-dotenv
+langchain_google_genai
+langchain_community
+langchain
+validators
+fastapi
+langserve
+uvicorn
+python-jose
+imgkit
+pyppeteer
+webdriver_manage
+selenium
+playwright
