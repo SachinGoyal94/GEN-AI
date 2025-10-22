@@ -1,17 +1,22 @@
-python-dotenv
-langchain_google_genai
-langchain_community
-validators
-unstructured
-fastapi
-langserve
-pydantic
 uvicorn
-crewai
-crewai_tools
-requests
-imgkit
-pyppeteer
 webdriver_manage
 selenium
-playwright
+
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+python-multipart==0.0.19  # For file uploads
+
+langchain==0.3.13
+langchain-community==0.3.13
+langchain-google-genai==2.0.8
+langchain-core==0.3.28
+crewai==0.86.0
+crewai-tools==0.17.0
+playwright==1.49.1
+validators==0.34.0
+python-jose[cryptography]==3.3.0  # JWT tokens
+requests==2.32.3
+pyflowchart==0.3.1  # Python to flowchart
