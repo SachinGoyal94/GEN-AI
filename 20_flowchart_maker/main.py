@@ -299,9 +299,6 @@ async def generate_flowchart(request: FlowchartRequest, background_tasks: Backgr
     """
     logger.info(f"Received generate request: {request.prompt}")
 
-    if not llm:
-        raise HTTPException(status_code=500, detail="LLM not initialized. Check MISTRAL_KEY environment variable.")
-
     try:
         # Generate unique job ID
         job_id = str(uuid.uuid4())
