@@ -11,3 +11,4 @@ pymysql
 python-multipart
 crewai
 crewai_tools
+crewai[google-genai]
