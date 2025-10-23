@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Load API key
 load_dotenv()
-mistral_key = os.getenv("MISTRAL_KEY")
+mistral_key = os.getenv("GEMINI_KEY")
 
 if not mistral_key:
     logger.error("MISTRAL_KEY not found in environment variables!")
@@ -43,7 +43,7 @@ app.add_middleware(
 # Initialize LLM
 try:
     llm = LLM(
-        model="mistral/mistral-large-latest",
+        model="gemini/gemini-2.5-flash-lite-preview-06-17",
         api_key=mistral_key
     )
     logger.info("LLM initialized successfully")
