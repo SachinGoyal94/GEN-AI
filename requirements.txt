@@ -74,3 +74,8 @@ litellm
 smolagents
 ddgs #for DuckDuckGOSearch
 matplotlib
+imgkit
+pyppeteer
+webdriver_manage
+selenium
+playwright

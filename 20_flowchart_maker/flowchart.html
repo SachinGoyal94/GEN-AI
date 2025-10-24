@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid Diagram</title>
+</head>
+<body>
+
+    <div class="mermaid">
+        flowchart TD
+            A[Start] --> B{Check User's Age};
+            B --> C{Age > 18?};
+            C -- Yes --> D{Age > 24?};
+            C -- No --> E[Cannot drive LMV or HMV];
+            E --> F[End];
+            D -- Yes --> G[Can Drive HMV and LMV];
+            D -- No --> H[Can Drive LMV];
+            G --> I{Check for License};
+            H --> I;
+            I -- Yes --> J{Age = 30?};
+            I -- No --> K[Not permitted to drive];
+            K --> F;
+            J -- Yes --> L[Reappear for driving test];
+            J -- No --> M{Age = 60?};
+            M -- Yes --> N[License valid after passing tests every 6 months];
+            M -- No --> O[License Valid];
+            L --> F;
+            N --> F;
+            O --> F;
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+
+</body>
+</html>

@@ -3,7 +3,7 @@ from tools import character_tool
 
 
 def create_character_agent(character_name: str, character_summary: str, llm):
-    """Create a character agent that can respond in character."""
+
 
     return Agent(
         name=f"{character_name} Character Agent",
