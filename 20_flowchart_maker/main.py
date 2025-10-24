@@ -6,16 +6,11 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from pyflowchart import Flowchart, output_html
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+from pyflowchart import Flowchart
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, LLM
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-import time
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -76,6 +71,7 @@ class FlowchartRequest(BaseModel):
 class FlowchartResponse(BaseModel):
     job_id: str
     message: str
+    view_url: str
     svg_url: str
     png_url: str
     generated_code: str
@@ -140,28 +136,49 @@ def generate_python_code(user_prompt: str) -> str:
     logger.info(f"Generating code for prompt: {user_prompt}")
     try:
         code_generator = Agent(
-            role="Python Flowchart Code Generator",
-            goal="Generate Python code with a clear function definition for flowchart visualization.",
-            backstory="An expert programmer who writes Python functions with clear logic flow, perfect for flowchart generation. Always wraps code in a proper function definition.",
+            role="Flowchart Logic Designer",
+            goal="Generate Python code that creates meaningful flowcharts with descriptive labels instead of code syntax.",
+            backstory="An expert at designing flowcharts who uses print() statements with clear, human-readable messages to represent business logic and decision points. Avoids showing raw code in flowcharts.",
             llm=llm
         )
 
         task = Task(
-            description=f"""Generate Python code for this request: {user_prompt}
+            description=f"""Create a Python function for: {user_prompt}
 
-CRITICAL REQUIREMENTS:
-1. Create a SINGLE function that contains ALL the logic
-2. Use a descriptive function name (e.g., check_age, process_order, calculate_price)
-3. Include proper control flow (if/else, loops, etc.)
-4. Ensure proper indentation (4 spaces)
-5. Do NOT include any markdown formatting, code blocks (```), or triple quotes
-6. Return ONLY the function definition - nothing else
+CRITICAL RULES FOR FLOWCHART GENERATION:
+1. Use print() statements with DESCRIPTIVE MESSAGES, not code:
+   ✅ GOOD: print("Check if user age is 18 or above")
+   ❌ BAD: print("if age >= 18:")
 
-Example format:
-{python_template}
+2. Every decision point should print a QUESTION:
+   ✅ GOOD: print("Is the customer a premium member?")
+   ❌ BAD: print("if is_premium:")
 
-Generate the complete function now (ONLY the function, no explanations):""",
-            expected_output="A single Python function with proper syntax, ready for flowchart generation.",
+3. Every action should print what HAPPENS:
+   ✅ GOOD: print("Apply 20% discount to cart")
+   ❌ BAD: print("discount = 0.20")
+
+4. Use if/else for decisions, but the print statements should describe BUSINESS LOGIC
+5. Create ONE function with a descriptive name
+6. No markdown, no code blocks, no explanations
+
+EXAMPLE FOR "check voting eligibility":
+```
+def check_voting_eligibility():
+    print("Start: Check Voting Eligibility")
+    age = 18  # dummy variable
+    if age >= 18:
+        print("Person is 18 or older")
+        print("Person is eligible to vote")
+    else:
+        print("Person is under 18")
+        print("Person is not eligible to vote")
+    print("End: Eligibility Check Complete")
+```
+
+Now generate for: {user_prompt}
+Return ONLY the function code:""",
+            expected_output="A Python function with descriptive print statements for flowchart visualization.",
             agent=code_generator
         )
         crew = Crew(
@@ -202,27 +219,29 @@ def clean_python_code(code: str) -> str:
                     return code
 
         code_cleaner = Agent(
-            role="Python Code Cleaner and Function Wrapper",
-            goal="Ensure Python code has a valid function definition and is ready for flowchart generation.",
-            backstory="An expert Python developer who ensures code has proper function definitions and is syntactically correct for visualization.",
+            role="Flowchart Code Optimizer",
+            goal="Ensure code has descriptive print statements for flowcharts, not raw code syntax.",
+            backstory="An expert at converting code into flowchart-friendly format with human-readable messages.",
             llm=llm
         )
 
         task = Task(
-            description=f"""Review and fix this Python code for flowchart generation:
+            description=f"""Optimize this code for flowchart visualization:
 
 {code}
 
-CRITICAL REQUIREMENTS:
-1. Ensure there is EXACTLY ONE function definition (def function_name():)
-2. If no function exists, wrap ALL code in a function called 'process_flowchart'
-3. Fix any syntax errors while preserving logic
-4. Ensure proper indentation (4 spaces inside functions)
-5. Keep all the original logic intact
-6. Return ONLY the function code without markdown, quotes, or explanations
+REQUIREMENTS:
+1. Keep the function structure intact
+2. Replace any code-like print statements with DESCRIPTIVE MESSAGES:
+   - Change print("if x > 5:") to print("Check if value exceeds 5")
+   - Change print("x = 10") to print("Set value to 10")
+   - Change print("return result") to print("Return final result")
+3. Make every print statement human-readable and business-focused
+4. Keep all if/else/loop structure
+5. Return ONLY the function code
 
-Return the corrected function now:""",
-            expected_output="A single valid Python function ready for flowchart visualization.",
+Return the optimized function:""",
+            expected_output="A function with descriptive print statements ready for flowchart visualization.",
             agent=code_cleaner
         )
         crew = Crew(
@@ -267,49 +286,465 @@ def detect_first_function(code: str) -> tuple[str, bool]:
         return "main", False
 
 
-def fix_svg_dimensions(svg_content: str) -> str:
-    """Fix SVG dimensions to ensure complete rendering."""
-    try:
-        # Extract viewBox if present
-        viewbox_match = re.search(r'viewBox="([^"]+)"', svg_content)
-
-        if viewbox_match:
-            viewbox = viewbox_match.group(1)
-            parts = viewbox.split()
-            if len(parts) == 4:
-                width = float(parts[2])
-                height = float(parts[3])
-
-                # Add 20% padding
-                width = int(width * 1.2)
-                height = int(height * 1.2)
-
-                logger.info(f"Setting SVG dimensions to {width}x{height}")
-
-                # Replace or add width and height attributes
-                svg_content = re.sub(r'width="[^"]*"', f'width="{width}"', svg_content)
-                svg_content = re.sub(r'height="[^"]*"', f'height="{height}"', svg_content)
-
-                # If no width/height attributes, add them
-                if 'width=' not in svg_content:
-                    svg_content = svg_content.replace('<svg', f'<svg width="{width}" height="{height}"', 1)
-
-        return svg_content
-    except Exception as e:
-        logger.error(f"Error fixing SVG dimensions: {e}")
-        return svg_content
-
-
 def generate_flowchart_html(code: str, field_name: str, html_filename: str):
     logger.info(f"Generating flowchart HTML for function: {field_name}")
     try:
         fc = Flowchart.from_code(code, field=field_name, inner=False)
         flowchart_str = fc.flowchart()
 
-        # Use pyflowchart's built-in output_html function
-        output_html(html_filename, field_name, flowchart_str)
+        # Create enhanced HTML with download buttons
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Flowchart - {field_name}</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flowchart/1.17.1/flowchart.min.js"></script>
+    <style>
+        body {{
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            font-family: Arial, sans-serif;
+        }}
+        .container {{
+            max-width: 100%;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        .controls {{
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }}
+        button {{
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }}
+        button:hover {{
+            background: #45a049;
+        }}
+        .svg-button {{
+            background: #2196F3;
+        }}
+        .svg-button:hover {{
+            background: #0b7dda;
+        }}
+        #diagram {{
+            display: inline-block;
+            background: white;
+            padding: 20px;
+        }}
+        .title {{
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">Flowchart: {field_name}</div>
+        <div class="controls">
+            <button onclick="downloadPNG()">📥 Download PNG</button>
+            <button class="svg-button" onclick="downloadSVG()">📥 Download SVG</button>
+        </div>
+        <div id="diagram"></div>
+    </div>
 
-        logger.info(f"✅ HTML generated: {html_filename}")
+    <script>
+        var code = `{flowchart_str}`;
+        var diagram = flowchart.parse(code);
+
+        // Draw the flowchart
+        diagram.drawSVG('diagram', {{
+            'x': 0,
+            'y': 0,
+            'line-width': 2,
+            'line-length': 50,
+            'text-margin': 10,
+            'font-size': 14,
+            'font': 'normal',
+            'font-family': 'Arial',
+            'font-weight': 'normal',
+            'font-color': 'black',
+            'line-color': 'black',
+            'element-color': 'black',
+            'fill': 'white',
+            'yes-text': 'yes',
+            'no-text': 'no',
+            'arrow-end': 'block',
+            'scale': 1,
+            'symbols': {{
+                'start': {{
+                    'font-color': 'black',
+                    'element-color': 'black',
+                    'fill': '#90EE90'
+                }},
+                'end': {{
+                    'font-color': 'white',
+                    'element-color': 'black',
+                    'fill': '#FF6B6B'
+                }}
+            }},
+            'flowstate': {{
+                'approved': {{'fill': '#90EE90'}},
+                'rejected': {{'fill': '#FFB6C1'}},
+                'processing': {{'fill': '#ADD8E6'}}
+            }}
+        }});
+
+        // Function to download as PNG
+        function downloadPNG() {{
+            try {{
+                var svg = document.querySelector('#diagram svg');
+                if (!svg) {{
+                    alert('SVG not found!');
+                    return;
+                }}
+
+                // Get SVG dimensions
+                var bbox = svg.getBBox();
+                var padding = 40;
+                var width = bbox.width + bbox.x + padding * 2;
+                var height = bbox.height + bbox.y + padding * 2;
+
+                // Create canvas
+                var canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                var ctx = canvas.getContext('2d');
+
+                // Fill white background
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, width, height);
+
+                // Get SVG data
+                var svgData = new XMLSerializer().serializeToString(svg);
+
+                // Create image from SVG
+                var img = new Image();
+                var svgBlob = new Blob([svgData], {{type: 'image/svg+xml;charset=utf-8'}});
+                var url = URL.createObjectURL(svgBlob);
+
+                img.onload = function() {{
+                    // Draw image on canvas with padding
+                    ctx.drawImage(img, padding, padding);
+
+                    // Convert to PNG and download
+                    canvas.toBlob(function(blob) {{
+                        var link = document.createElement('a');
+                        link.download = 'flowchart_{field_name}.png';
+                        link.href = URL.createObjectURL(blob);
+                        link.click();
+                        URL.revokeObjectURL(url);
+                        URL.revokeObjectURL(link.href);
+                    }}, 'image/png');
+                }};
+
+                img.onerror = function() {{
+                    alert('Error generating PNG. Please try SVG download instead.');
+                    URL.revokeObjectURL(url);
+                }};
+
+                img.src = url;
+            }} catch (error) {{
+                console.error('Error downloading PNG:', error);
+                alert('Error downloading PNG: ' + error.message);
+            }}
+        }}
+
+        // Function to download as SVG
+        function downloadSVG() {{
+            try {{
+                var svg = document.querySelector('#diagram svg');
+                if (!svg) {{
+                    alert('SVG not found!');
+                    return;
+                }}
+
+                // Clone and prepare SVG for download
+                var svgClone = svg.cloneNode(true);
+
+                // Set proper dimensions
+                var bbox = svg.getBBox();
+                svgClone.setAttribute('width', bbox.width + bbox.x + 40);
+                svgClone.setAttribute('height', bbox.height + bbox.y + 40);
+                svgClone.setAttribute('viewBox', `${{bbox.x - 20}} ${{bbox.y - 20}} ${{bbox.width + 40}} ${{bbox.height + 40}}`);
+
+                // Get SVG string
+                var svgData = new XMLSerializer().serializeToString(svgClone);
+
+                // Add XML declaration
+                svgData = '<?xml version="1.0" encoding="UTF-8"?>\\n' + svgData;
+
+                // Create blob and download
+                var blob = new Blob([svgData], {{type: 'image/svg+xml;charset=utf-8'}});
+                var link = document.createElement('a');
+                link.download = 'flowchart_{field_name}.svg';
+                link.href = URL.createObjectURL(blob);
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }} catch (error) {{
+                console.error('Error downloading SVG:', error);
+                alert('Error downloading SVG: ' + error.message);
+            }}
+        }}
+
+        console.log('Flowchart rendered successfully');
+    </script>
+</body>
+</html>"""
+
+        with open(html_filename, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+
+        logger.info(f"✅ Enhanced HTML with download buttons generated: {html_filename}")
+        return html_filename, flowchart_str
+    except AssertionError as e:
+        logger.error(f"❌ Flowchart generation failed: {e}")
+        logger.error(f"Function name: {field_name}")
+        logger.error(f"Code being parsed:\n{'-' * 50}\n{code}\n{'-' * 50}")
+        raise
+    except Exception as e:
+        logger.error(f"Error generating flowchart HTML: {e}\n{traceback.format_exc()}")
+        raise
+
+
+def generate_flowchart_from_prompt(user_prompt: str, job_id: str):
+    logger.info(f"Generating flowchart HTML for function: {field_name}")
+    try:
+        fc = Flowchart.from_code(code, field=field_name, inner=False)
+        flowchart_str = fc.flowchart()
+
+        # Create enhanced HTML with download buttons
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Flowchart - {field_name}</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flowchart/1.17.1/flowchart.min.js"></script>
+    <style>
+        body {{
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            font-family: Arial, sans-serif;
+        }}
+        .container {{
+            max-width: 100%;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        .controls {{
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }}
+        button {{
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }}
+        button:hover {{
+            background: #45a049;
+        }}
+        .svg-button {{
+            background: #2196F3;
+        }}
+        .svg-button:hover {{
+            background: #0b7dda;
+        }}
+        #diagram {{
+            display: inline-block;
+            background: white;
+            padding: 20px;
+        }}
+        .title {{
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">Flowchart: {field_name}</div>
+        <div class="controls">
+            <button onclick="downloadPNG()">📥 Download PNG</button>
+            <button class="svg-button" onclick="downloadSVG()">📥 Download SVG</button>
+        </div>
+        <div id="diagram"></div>
+    </div>
+
+    <script>
+        var code = `{flowchart_str}`;
+        var diagram = flowchart.parse(code);
+
+        // Draw the flowchart
+        diagram.drawSVG('diagram', {{
+            'x': 0,
+            'y': 0,
+            'line-width': 2,
+            'line-length': 50,
+            'text-margin': 10,
+            'font-size': 14,
+            'font': 'normal',
+            'font-family': 'Arial',
+            'font-weight': 'normal',
+            'font-color': 'black',
+            'line-color': 'black',
+            'element-color': 'black',
+            'fill': 'white',
+            'yes-text': 'yes',
+            'no-text': 'no',
+            'arrow-end': 'block',
+            'scale': 1,
+            'symbols': {{
+                'start': {{
+                    'font-color': 'black',
+                    'element-color': 'black',
+                    'fill': '#90EE90'
+                }},
+                'end': {{
+                    'font-color': 'white',
+                    'element-color': 'black',
+                    'fill': '#FF6B6B'
+                }}
+            }},
+            'flowstate': {{
+                'approved': {{'fill': '#90EE90'}},
+                'rejected': {{'fill': '#FFB6C1'}},
+                'processing': {{'fill': '#ADD8E6'}}
+            }}
+        }});
+
+        // Function to download as PNG
+        function downloadPNG() {{
+            try {{
+                var svg = document.querySelector('#diagram svg');
+                if (!svg) {{
+                    alert('SVG not found!');
+                    return;
+                }}
+
+                // Get SVG dimensions
+                var bbox = svg.getBBox();
+                var padding = 40;
+                var width = bbox.width + bbox.x + padding * 2;
+                var height = bbox.height + bbox.y + padding * 2;
+
+                // Create canvas
+                var canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                var ctx = canvas.getContext('2d');
+
+                // Fill white background
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, width, height);
+
+                // Get SVG data
+                var svgData = new XMLSerializer().serializeToString(svg);
+
+                // Create image from SVG
+                var img = new Image();
+                var svgBlob = new Blob([svgData], {{type: 'image/svg+xml;charset=utf-8'}});
+                var url = URL.createObjectURL(svgBlob);
+
+                img.onload = function() {{
+                    // Draw image on canvas with padding
+                    ctx.drawImage(img, padding, padding);
+
+                    // Convert to PNG and download
+                    canvas.toBlob(function(blob) {{
+                        var link = document.createElement('a');
+                        link.download = 'flowchart_{field_name}.png';
+                        link.href = URL.createObjectURL(blob);
+                        link.click();
+                        URL.revokeObjectURL(url);
+                        URL.revokeObjectURL(link.href);
+                    }}, 'image/png');
+                }};
+
+                img.onerror = function() {{
+                    alert('Error generating PNG. Please try SVG download instead.');
+                    URL.revokeObjectURL(url);
+                }};
+
+                img.src = url;
+            }} catch (error) {{
+                console.error('Error downloading PNG:', error);
+                alert('Error downloading PNG: ' + error.message);
+            }}
+        }}
+
+        // Function to download as SVG
+        function downloadSVG() {{
+            try {{
+                var svg = document.querySelector('#diagram svg');
+                if (!svg) {{
+                    alert('SVG not found!');
+                    return;
+                }}
+
+                // Clone and prepare SVG for download
+                var svgClone = svg.cloneNode(true);
+
+                // Set proper dimensions
+                var bbox = svg.getBBox();
+                svgClone.setAttribute('width', bbox.width + bbox.x + 40);
+                svgClone.setAttribute('height', bbox.height + bbox.y + 40);
+                svgClone.setAttribute('viewBox', `${{bbox.x - 20}} ${{bbox.y - 20}} ${{bbox.width + 40}} ${{bbox.height + 40}}`);
+
+                // Get SVG string
+                var svgData = new XMLSerializer().serializeToString(svgClone);
+
+                // Add XML declaration
+                svgData = '<?xml version="1.0" encoding="UTF-8"?>\\n' + svgData;
+
+                // Create blob and download
+                var blob = new Blob([svgData], {{type: 'image/svg+xml;charset=utf-8'}});
+                var link = document.createElement('a');
+                link.download = 'flowchart_{field_name}.svg';
+                link.href = URL.createObjectURL(blob);
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }} catch (error) {{
+                console.error('Error downloading SVG:', error);
+                alert('Error downloading SVG: ' + error.message);
+            }}
+        }}
+
+        console.log('Flowchart rendered successfully');
+    </script>
+</body>
+</html>"""
+
+        with open(html_filename, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+
+        logger.info(f"✅ Enhanced HTML with download buttons generated: {html_filename}")
         return html_filename, flowchart_str
     except AssertionError as e:
         logger.error(f"❌ Flowchart generation failed: {e}")
@@ -434,8 +869,6 @@ def generate_flowchart_from_prompt(user_prompt: str, job_id: str):
     try:
         # Generate filenames
         html_file = OUTPUT_DIR / f"{job_id}.html"
-        png_file = OUTPUT_DIR / f"{job_id}.png"
-        svg_file = OUTPUT_DIR / f"{job_id}.svg"
 
         # Step 1: Generate code
         logger.info("Step 1: Generating Python code...")
@@ -463,15 +896,12 @@ def generate_flowchart_from_prompt(user_prompt: str, job_id: str):
 
         logger.info(f"✅ Using function: {function_name}")
 
-        # Step 5: Generate HTML and get SVG content
-        logger.info("Step 4: Generating flowchart HTML...")
+        # Step 5: Generate HTML with download buttons
+        logger.info("Step 4: Generating interactive flowchart HTML...")
         html_file_path, svg_content = generate_flowchart_html(cleaned_code, function_name, str(html_file))
 
-        # Step 6: Render PNG and save SVG using Selenium
-        logger.info("Step 5: Rendering PNG and saving SVG...")
-        render_and_download_selenium(str(html_file), svg_content, str(png_file), str(svg_file))
-
         logger.info(f"✅ Flowchart generation completed for job: {job_id}")
+        logger.info(f"   View at: /view/{job_id}")
         return cleaned_code
     except Exception as e:
         logger.error(f"❌ Error in generate_flowchart_from_prompt: {e}\n{traceback.format_exc()}")
@@ -482,15 +912,18 @@ def generate_flowchart_from_prompt(user_prompt: str, job_id: str):
 async def root():
     return {
         "message": "Flowchart Generator API",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "status": "operational" if llm else "llm_not_initialized",
+        "description": "Generate flowcharts with browser-based PNG/SVG download",
         "endpoints": {
             "POST /generate": "Generate flowchart from prompt",
+            "GET /view/{job_id}": "View interactive flowchart with download buttons",
             "GET /download/svg/{job_id}": "Download SVG file",
-            "GET /download/png/{job_id}": "Download PNG file",
+            "GET /download/png/{job_id}": "Download PNG file (if generated)",
             "GET /health": "Check API health",
             "DELETE /cleanup/{job_id}": "Delete generated files"
-        }
+        },
+        "usage": "1. POST to /generate with prompt, 2. Open /view/{job_id} in browser, 3. Click 'Download PNG' button for complete image"
     }
 
 
@@ -532,7 +965,8 @@ async def generate_flowchart(request: FlowchartRequest, background_tasks: Backgr
 
         return FlowchartResponse(
             job_id=job_id,
-            message="Flowchart generated successfully",
+            message="Flowchart generated successfully. Open view_url in browser to download PNG/SVG.",
+            view_url=f"/view/{job_id}",
             svg_url=f"/download/svg/{job_id}",
             png_url=f"/download/png/{job_id}",
             generated_code=generated_code
@@ -588,6 +1022,22 @@ async def download_png(job_id: str):
         path=png_file,
         media_type="image/png",
         filename=f"flowchart_{job_id}.png"
+    )
+
+
+@app.get("/view/{job_id}")
+async def view_flowchart(job_id: str):
+    """View the interactive flowchart HTML with download buttons"""
+    html_file = OUTPUT_DIR / f"{job_id}.html"
+
+    if not html_file.exists():
+        logger.error(f"HTML file not found: {html_file}")
+        raise HTTPException(status_code=404, detail="Flowchart not found")
+
+    return FileResponse(
+        path=html_file,
+        media_type="text/html",
+        filename=f"flowchart_{job_id}.html"
     )
 
 

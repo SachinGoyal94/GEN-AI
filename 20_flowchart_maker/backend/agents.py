@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-llm = LLM(model="gemini/gemini-2.0-flash", api_key=os.getenv("GEMINI_KEY"))
+llm = LLM(model="gemini/gemini-2.5-flash-lite-preview-06-17", api_key=os.getenv("GEMINI_KEY"))
 
 # 🧠 Analyzer Agent
 analyzer_agent = Agent(
