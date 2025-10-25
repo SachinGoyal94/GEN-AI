@@ -1,8 +1,3 @@
-"""
-FastAPI Backend for CrewAI Flowchart Generator
-User submits query, receives flowchart HTML
-"""
-
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -225,23 +220,12 @@ def extract_python_code(text: str) -> str:
 
 
 def generate_flowchart(user_query: str, flowchart_id: str):
-    """Generate flowchart from user query"""
-
-    # Create output directory if it doesn't exist
     os.makedirs("generated_flowcharts", exist_ok=True)
-
-    # Step 1: Generate conceptual code
     crew = create_flowchart_crew(user_query)
     result = crew.kickoff()
-
-    # Extract the generated code
     generated_code = extract_python_code(str(result))
-
-    # Step 2: Generate flowchart
     fc = Flowchart.from_code(generated_code)
     flowchart_code = fc.flowchart()
-
-    # Step 3: Generate HTML
     output_file = f"generated_flowcharts/{flowchart_id}.html"
     output_html(
         output_name=output_file,
@@ -283,13 +267,6 @@ async def health_check():
 
 @app.post("/generate", response_model=FlowchartResponse)
 async def generate_flowchart_endpoint(request: FlowchartRequest):
-    """
-    Generate a flowchart from a natural language query
-
-    - **query**: Natural language description of the logic flow
-
-    Returns flowchart HTML, generated code, and flowchart definition
-    """
     try:
         # Validate input
         if not request.query or len(request.query.strip()) == 0:
@@ -331,11 +308,6 @@ async def generate_flowchart_endpoint(request: FlowchartRequest):
 
 @app.get("/flowchart/{flowchart_id}", response_class=HTMLResponse)
 async def get_flowchart(flowchart_id: str):
-    """
-    Retrieve and display a generated flowchart
-
-    - **flowchart_id**: ID of the generated flowchart
-    """
     try:
         file_path = f"generated_flowcharts/{flowchart_id}.html"
 
@@ -355,11 +327,6 @@ async def get_flowchart(flowchart_id: str):
 
 @app.get("/download/{flowchart_id}")
 async def download_flowchart(flowchart_id: str):
-    """
-    Download flowchart HTML file
-
-    - **flowchart_id**: ID of the generated flowchart
-    """
     try:
         file_path = f"generated_flowcharts/{flowchart_id}.html"
 
@@ -380,13 +347,4 @@ async def download_flowchart(flowchart_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-
-    print("=" * 70)
-    print("🚀 Starting Flowchart Generator API Server")
-    print("=" * 70)
-    print("📍 Server will run on: http://localhost:8000")
-    print("📖 API Docs: http://localhost:8000/docs")
-    print("📊 ReDoc: http://localhost:8000/redoc")
-    print("=" * 70)
-
-    uvicorn.run(app, host="127.0.0.1", port=7000)
+    uvicorn.run(app, host="0.0.0.0", port=10000)
