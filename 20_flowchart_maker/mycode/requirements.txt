@@ -8,7 +8,6 @@ fastapi
 langserve
 pydantic
 uvicorn
-crewai
 crewai_tools
 requests
 imgkit
