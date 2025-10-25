@@ -49,8 +49,22 @@ class FlowchartResponse(BaseModel):
     message: str
     flowchart_id: str
     html_url: str
+    download_url: str
     generated_code: str
     flowchart_definition: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "message": "Flowchart generated successfully",
+                "flowchart_id": "fc_a1b2c3d4e5f6",
+                "html_url": "/flowchart/fc_a1b2c3d4e5f6",
+                "download_url": "/download/fc_a1b2c3d4e5f6",
+                "generated_code": "def check_logic()...",
+                "flowchart_definition": "st1=>start..."
+            }
+        }
 
 # Define Agents
 requirements_analyzer = Agent(
@@ -295,17 +309,23 @@ async def generate_flowchart_endpoint(request: FlowchartRequest):
 
         print(f"✅ Flowchart generated successfully: {flowchart_id}")
 
-        return FlowchartResponse(
+        # Create response with all required fields
+        response_data = FlowchartResponse(
             success=True,
             message="Flowchart generated successfully",
             flowchart_id=flowchart_id,
             html_url=f"/flowchart/{flowchart_id}",
+            download_url=f"/download/{flowchart_id}",
             generated_code=result['generated_code'],
             flowchart_definition=result['flowchart_definition']
         )
 
+        return response_data
+
     except Exception as e:
         print(f"❌ Error generating flowchart: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error generating flowchart: {str(e)}")
 
 
