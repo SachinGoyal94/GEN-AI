@@ -1,3 +1,4 @@
+greenlet==3.2.3
 python-dotenv
 langchain_google_genai
 langchain_community
