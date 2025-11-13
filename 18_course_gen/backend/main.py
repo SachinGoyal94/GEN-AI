@@ -9,7 +9,7 @@ gemini_key = os.getenv("GEMINI_KEY")
 if not gemini_key:
     raise ValueError("❌ GEMINI_KEY missing in .env file")
 gemini_llm = LLM(
-    model="gemini/gemini-2.5-flash-lite-preview-06-17",
+    model="gemini/gemini-2.0-flash",
     api_key=gemini_key
 )
 tavily_key = os.getenv("TAVILY_KEY")
@@ -623,10 +623,6 @@ async def root():
 
 @app.post("/generate/course")
 async def generate_course(request: CourseRequest):
-    """
-    Generate complete course with structured output for each component.
-    Returns: skills_analysis, content, and quiz as separate fields.
-    """
     try:
         crew = Crew(
             agents=[curriculum_creator_agent, content_writer, quiz_maker],
