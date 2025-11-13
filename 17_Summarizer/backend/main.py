@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from crewai import LLM, Agent, Task,Crew
 from crewai.tools import BaseTool
 
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import UnstructuredURLLoader
 from langchain.chains.summarize import load_summarize_chain
