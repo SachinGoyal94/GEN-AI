@@ -29,8 +29,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite-preview-06-17", google_api_key=GEMINI_KEY)
-crewai_llm = LLM(model="gemini/gemini-2.5-flash-lite-preview-06-17", api_key=GEMINI_KEY)
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=GEMINI_KEY)
+crewai_llm = LLM(model="gemini/gemini-2.0-flash", api_key=GEMINI_KEY)
 
 def extract_youtube_id(url: str) -> str:
     if "v=" in url:
