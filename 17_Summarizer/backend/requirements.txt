@@ -4,11 +4,11 @@ python-dotenv
 langchain
 langchain-google-genai
 langchain-community
+langchain-chains
 unstructured
 requests
 validators
 youtube_transcript_api
-fastapi
 pydantic
 python-multipart
 crewai
