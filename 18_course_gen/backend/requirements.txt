@@ -8,10 +8,9 @@ unstructured
 requests
 validators
 youtube_transcript_api
-fastapi
-pydantic
 python-multipart
-crewai
+pydantic
+crewai[google-genai]
 crewai_tools
 tavily-python==0.7.6
 langchain-tavily==0.2.6
