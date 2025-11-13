@@ -9,17 +9,14 @@ import uuid
 from datetime import datetime
 from pyflowchart import Flowchart, output_html
 
-# Initialize LLM
 from llm import gemini_llm
 
-# FastAPI app
 app = FastAPI(
     title="Flowchart Generator API",
     description="Generate flowcharts from natural language queries using AI",
     version="1.0.0"
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,7 +25,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request/Response Models
 class FlowchartRequest(BaseModel):
     query: str
 
@@ -61,7 +57,6 @@ class FlowchartResponse(BaseModel):
             }
         }
 
-# Define Agents
 requirements_analyzer = Agent(
     role='Requirements Analyzer',
     goal='Understand user requirements and create a detailed specification for flowchart logic',
@@ -109,7 +104,6 @@ flowchart_specialist = Agent(
 
 
 def create_flowchart_crew(user_query: str):
-    """Create a crew that generates conceptual Python code for flowchart visualization"""
 
     requirements_task = Task(
         description=f"""Analyze this user request and create a flowchart specification:
