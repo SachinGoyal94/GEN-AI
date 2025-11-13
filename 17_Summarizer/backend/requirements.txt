@@ -10,5 +10,5 @@ validators
 youtube_transcript_api
 pydantic
 python-multipart
-crewai
+crewai[google-genai]
 crewai_tools
