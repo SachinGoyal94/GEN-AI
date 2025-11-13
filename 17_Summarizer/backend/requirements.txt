@@ -1,10 +1,9 @@
 fastapi
 uvicorn
 python-dotenv
-langchain
+langchain==0.3.2
 langchain-google-genai
 langchain-community
-langchain-chains
 unstructured
 requests
 validators
