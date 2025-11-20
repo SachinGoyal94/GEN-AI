@@ -70,9 +70,9 @@ def get_chain_with_history(engine: str):
     """
     try:
         # Initialize the appropriate LLM
-        if engine in ["gemma2-9b-it", "llama-3.1-8b-instant", "llama3-8b-8192"]:
+        if engine in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]:
             llm = ChatGroq(model=engine, streaming=True)
-        elif engine in ["gemini-2.5-flash-lite-preview-06-17"]:
+        elif engine in ["gemini-2.5-flash-lite"]:
             llm = ChatGoogleGenerativeAI(model=engine, google_api_key=gemini_api_key)
         elif engine in ["llama3.2:latest", "gemma3:1b"]:
             llm = ChatOllama(model=engine)
